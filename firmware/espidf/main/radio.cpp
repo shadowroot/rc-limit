@@ -15,6 +15,7 @@
 #include "esp_gatt_common_api.h"
 #endif
 namespace io {
+char bluetoothName[20]="RC-Limiter";
 namespace {
 EventGroupHandle_t events;
 constexpr EventBits_t WRITE_ACK=1,UNCONGESTED=2;
@@ -89,7 +90,7 @@ void gattsCallback(esp_gatts_cb_event_t event,esp_gatt_if_t interface,esp_ble_ga
     switch(event) {
     case ESP_GATTS_REG_EVT: {
         if(param->reg.status!=ESP_GATT_OK) break;
-        serverInterface=interface;esp_ble_gap_set_device_name("RC-Limiter-C3");
+        serverInterface=interface;esp_ble_gap_set_device_name(bluetoothName);
         esp_ble_adv_data_t adv={};adv.flag=ESP_BLE_ADV_FLAG_GEN_DISC|ESP_BLE_ADV_FLAG_BREDR_NOT_SPT;
         adv.service_uuid_len=sizeof(serviceUuid);adv.p_service_uuid=serviceUuid;
         esp_ble_gap_config_adv_data(&adv);
@@ -146,7 +147,7 @@ void initRadio() {
     if(esp_bluedroid_init()!=ESP_OK || esp_bluedroid_enable()!=ESP_OK) return;
 #if CONFIG_IDF_TARGET_ESP32
     esp_bt_gap_register_callback(gapCallback);esp_spp_register_callback(sppCallback);
-    esp_bt_gap_set_device_name("RC-Limiter");
+    esp_bt_gap_set_device_name(bluetoothName);
     esp_bt_io_cap_t capability=ESP_BT_IO_CAP_NONE;
     esp_bt_gap_set_security_param(ESP_BT_SP_IOCAP_MODE,&capability,sizeof(capability));
     esp_spp_cfg_t config={};config.mode=ESP_SPP_MODE_CB;config.enable_l2cap_ertm=true;

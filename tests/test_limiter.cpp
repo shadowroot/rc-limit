@@ -1,8 +1,17 @@
 #include "../firmware/rc_limiter/limiter.h"
 #include <assert.h>
+#include "../firmware/rc_limiter/identity.h"
 #include <iostream>
 
 int main() {
+  for(const char* name : {"Boat port ESC", "Boat-starboard", "A", "A.B_C-1234567890"}) assert(identity::valid(name));
+  for(const char* name : {"", " leading", "trailing ", "12345678901234567", "Boat\nESC", "Boat/ESC", "Böt"}) assert(!identity::valid(name));
+  assert(!identity::valid(nullptr));
+  uint8_t record[identity::RECORD_SIZE];char name[identity::MAX_NAME+1]="unchanged";
+  identity::encode(record,"Boat port ESC");assert(identity::decode(record,name));assert(!strcmp(name,"Boat port ESC"));
+  record[8]^=1;assert(!identity::decode(record,name));assert(!strcmp(name,"Boat port ESC"));
+  identity::encode(record,"Boat");memset(record+8,'A',identity::MAX_NAME+1);assert(!identity::decode(record,name));
+
   rc::Config c;
   assert(c.bidirectional==1);
   c.bidirectional=0;

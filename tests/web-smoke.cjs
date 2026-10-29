@@ -22,17 +22,18 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(config => {
-      let controller; let armed = false, saved = false, revision = 0;
+      let controller; let armed = false, saved = false, revision = 0, deviceName = 'Pico-ABC123';
       const board = new URL(location.href).searchParams.get('board') || 'pico';
       let mappings = [{ ...config, input_pin: board === 'esp32c3' ? 3 : board === 'esp32' ? 27 : 4, output_pin: board === 'esp32c3' ? 4 : board === 'esp32' ? 25 : 5 }];
       function reply(line, emit) {
         const request = JSON.parse(line); let error;
         if (request.cmd === 'set_mappings') { if (armed) error = 'disarm_first'; else { mappings = request.mappings; revision++; saved = false; } }
         window.simulatedMappings = mappings;
+        if (request.cmd === 'set_name') { if (armed) error = 'disarm_first'; else deviceName = request.name; }
         if (request.cmd === 'save') saved = true;
         if (request.cmd === 'arm') armed = true;
         if (request.cmd === 'disarm') armed = false;
-        const response = { id: request.id, ok: !error, error, board, armed, saved, revision,
+        const response = { device_name: deviceName, device_id: '001122ABC123', name_pending_restart: deviceName !== 'Pico-ABC123', id: request.id, ok: !error, error, board, armed, saved, revision,
           signal_ok: true, input_us: 1500, output_us: 1500, config: mappings[0], protocol_version: 2,
           max_mappings: 4, mappings, channel_states: mappings.map(() => ({ input_us: 1500, output_us: 1500, signal_ok: true, armed })),
           transports: { usb_serial: true, bluetooth_serial: board !== 'pico', bluetooth_type: board === 'esp32c3' ? 'ble' : 'classic_spp', usb_interface: 'native_cdc', bluetooth_name: board === 'esp32c3' ? 'RC-Limiter-C3' : 'RC-Limiter' } };
@@ -84,6 +85,13 @@ async function main() {
     assert.equal(await page.locator('#arm').isDisabled(), true);
     await page.locator('#connect').click();
     await page.waitForFunction(() => document.getElementById('connection').textContent === 'CONNECTED');
+    await page.locator('#device-name').fill('Boat port ESC');
+    await page.waitForTimeout(600); // Telemetry must preserve the unsaved name draft.
+    assert.equal(await page.locator('#device-name').inputValue(), 'Boat port ESC');
+    await page.locator('#rename-device').click();
+    await page.waitForFunction(() => document.getElementById('device-identity').textContent.includes('Boat port ESC'));
+    assert.match(await page.locator('#name-note').textContent(), /restart/i);
+
     assert.equal(await page.evaluate(() => window.serialSignals.dataTerminalReady), true);
     await page.locator('#forward_percent').fill('20');
     await page.locator('#apply').click();
@@ -109,6 +117,7 @@ async function main() {
     assert.equal(await page.locator('#mapping-summary p').count(), 2);
     await page.locator('#arm').click();
     await page.waitForFunction(() => document.getElementById('armed').textContent === 'ARMED');
+    assert.equal(await page.locator('#rename-device').isDisabled(), true);
     assert.equal(await page.locator('#apply').isDisabled(), true);
     assert.equal(await page.locator('#add-mapping').isDisabled(), true);
     await page.locator('#disarm').click();

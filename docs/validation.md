@@ -76,3 +76,9 @@ NODE_PATH=/path/to/tools/node_modules node tests/electron-smoke.cjs
 ```
 
 The browser test starts and stops its own loopback HTTP server; it does not publish a service. Override `CHROMIUM_PATH` for a different Chromium executable. The Electron test opens the device chooser and cancels; it never selects or opens a hardware port.
+
+## Device naming feature
+
+All four PlatformIO targets compiled after adding identity storage, `set_name`, hardware IDs and boot-time Bluetooth names. The C3 Arduino fallback also compiled. Native Android debug assembly passed. Portable sanitizer tests cover name length/characters, checksummed record round-trip, corruption, unterminated records and rejection without modifying the destination. JavaScript tests cover the same allowed names and unchanged mapping-profile shape. Simulated browser integration passed rename/display, reboot-pending feedback and preservation of an edited name across telemetry polls; Electron initialization also passed.
+
+No physical rename/reboot, persistence across a real flash update, Bluetooth advertisement/cache refresh, NVS/EEPROM name migration, USB identity readback or Android runtime rename was tested. User names are application metadata over USB, not custom USB product descriptors. Names are separate from mapping profiles and mapping saves.

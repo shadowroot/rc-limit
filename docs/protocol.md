@@ -1,6 +1,6 @@
 # Serial protocol and mappings
 
-USB serial on Pico, original ESP32 and C3, ESP32 Bluetooth Classic SPP, and C3 BLE UART use the same version 2 newline-delimited JSON commands. Use **115200, 8N1** for the ESP32 USB-to-UART bridge; USB CDC and Bluetooth baud are abstractions. Pico uses native USB CDC. ESP32 Bluetooth starts automatically as **RC-Limiter**, alongside USB.
+USB serial on Pico, original ESP32 and C3, ESP32 Bluetooth Classic SPP, and C3 BLE UART use the same version 2 newline-delimited JSON commands. Use **115200, 8N1** for the ESP32 USB-to-UART bridge; USB CDC and Bluetooth baud are abstractions. Pico uses native USB CDC. ESP32 Bluetooth starts automatically as **RC-&lt;device name&gt;**, alongside USB; see device identity below.
 
 Use one JSON object per line, maximum **3071 bytes** excluding the newline. Overlong lines are discarded through their newline and an error response follows. Each transport has an independent line buffer. Replies go to the transport carrying the command. There is no unsolicited telemetry; poll `get` at 2–4 Hz, waiting for the preceding reply. Four-channel replies are larger and can reduce achievable polling rate over USB UART. Use one controller at a time.
 
@@ -17,7 +17,7 @@ Every reply includes `ok`, echoed integer `id` (0 when omitted/unparseable), `bo
 - `channel_states`: matching entries containing `input_us`, `output_us`, `signal_ok` and `armed` for each mapping.
 - Top-level `armed` describes all outputs; top-level `signal_ok` is true only when all mapped inputs are healthy.
 - For legacy inspection, top-level `input_us`, `output_us` and `config` describe mapping 1 only.
-- `transports`: `usb_serial: true`, plus `bluetooth_serial` equal to the wireless startup result. `bluetooth_type` is `classic_spp`, `ble` or `none`; names are `RC-Limiter` (original ESP32) and `RC-Limiter-C3` (C3). C3 also reports `ble_service` and `usb_interface` (`native_cdc` for Super Mini or `usb_uart` for DevKitM-1). Pico reports Bluetooth false. A false result on ESP32 indicates Bluetooth initialization failed; USB remains available. These fields describe capabilities, not which connection carried the command.
+- `transports`: `usb_serial: true`, plus `bluetooth_serial` equal to the wireless startup result. `bluetooth_type` is `classic_spp`, `ble` or `none`; names use `RC-<device name>` captured at boot. C3 also reports `ble_service` and `usb_interface` (`native_cdc` for Super Mini or `usb_uart` for DevKitM-1). Pico reports Bluetooth false. A false result on ESP32 indicates Bluetooth initialization failed; USB remains available. These fields describe capabilities, not which connection carried the command.
 
 `get` reads state. `disarm` clears all arming and neutral dwell and requests each stop pulse. `arm` succeeds atomically only when **every input** is healthy and all inputs have remained at their own neutral for one second. Losing any mapped input stops and disarms all outputs; restoration never rearms. `save` writes all active mappings to flash, not edits still in a GUI form.
 
@@ -78,7 +78,7 @@ Common errors: `invalid_json`, `invalid_config` (legacy set), `invalid_mappings`
 
 ## C3 BLE UART transport
 
-C3 firmware advertises **RC-Limiter-C3** with the [Nordic UART Service](https://nrfconnectdocs.nordicsemi.com/ncs/latest/nrf/libraries/bluetooth/services/nus.html):
+C3 firmware advertises **RC-&lt;device name&gt;** with the [Nordic UART Service](https://nrfconnectdocs.nordicsemi.com/ncs/latest/nrf/libraries/bluetooth/services/nus.html):
 
 | UUID | Role |
 |---|---|
@@ -93,3 +93,19 @@ Firmware BLE callbacks enqueue data; the main loop processes JSON and receiver f
 The service has no pairing, bonding or application authentication requirement. Anyone able to connect locally can configure the board; use a controlled bench environment. Connection loss or a response timeout does not prove disarm was delivered. USB remains active, but use a single controller to avoid competing state changes. The original ESP32 build keeps Classic SPP and does not advertise this BLE service.
 
 Native ESP-IDF replies additionally include `"framework":"esp-idf"`. Clients should ignore unfamiliar metadata fields. Command and profile version 2 semantics are unchanged.
+
+## Device identity and naming
+
+Naming-capable firmware adds `device_name`, `device_id` and `name_pending_restart` to every reply. `device_id` is the stable hardware ID (Pico flash-board ID or ESP base MAC); it stays unchanged by renaming. Older firmware omits these fields and apps disable renaming. Protocol/profile version 2 remains unchanged.
+
+```json
+{"cmd":"set_name","id":7,"name":"Boat port ESC"}
+```
+
+`set_name` is accepted only while disarmed. Names are 1–16 ASCII letters/digits, spaces, dots, underscores or hyphens, with no leading/trailing space. Errors are `invalid_name`, `disarm_first` or `name_save_failed`. Success persists the name immediately and updates `device_name`; no `save` is required. It does not apply/save mapping drafts or change the mapping `saved` flag. Identity is per physical board, separate from imported/exported mapping profiles.
+
+Unnamed devices get a board-family name plus the final six hardware-ID hex digits, such as `ESP32-A1B2C3`, `C3-A1B2C3` or `Pico-A1B2C3`. Bluetooth uses `RC-` plus the name captured at boot, e.g. `RC-Boat port ESC`. Existing Bluetooth sessions stay connected; restart with motor power disconnected to advertise the new name. `transports.bluetooth_name` reports the name actually used for the current boot; `name_pending_restart` indicates a differing saved name on Bluetooth boards. Pico reports false because it has no Bluetooth.
+
+USB descriptors/COM-port labels are not renamed. The apps show the custom name and stable ID after connecting; the C3 USB Serial/JTAG product string is fixed by the hardware. OS Bluetooth caches may require refreshing/re-pairing after a name change. BLE discovery continues to filter the NUS service UUID, independent of the device name.
+
+Native ESP-IDF stores the name in NVS `rc_limit/name`, independently of `rc_limit/mappings`. Pico/Arduino stores a checksummed identity record in the last 64 bytes of its existing 4096-byte EEPROM area, outside the mapping JSON allocation. Native ESP-IDF can import that record from the Arduino EEPROM blob. Normal settings-preserving firmware updates retain identity. Full-chip erase, changing reserved flash/storage layouts, or firmware that overwrites the identity area can remove it; the hardware-derived default remains available. Downgrading from native ESP-IDF to Arduino does not copy its newer NVS name back to the old EEPROM record.

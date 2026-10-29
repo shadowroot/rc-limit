@@ -5,9 +5,9 @@ Use the **Board layouts, suggested pins & 5 V input resistors** panel under Pin 
 | Board | Build target | Configuration transports | Suggested first input → output |
 |---|---|---|---|
 | Standard Pico / RP2040 | `pico` | USB CDC | GP4 → GP5 |
-| Original ESP32 DevKit / WROOM | `esp32` | USB-to-UART + Bluetooth Classic SPP (`RC-Limiter`) | GPIO27 → GPIO25 |
-| ESP32-C3 Super Mini, native USB | `esp32c3` | Native USB Serial/JTAG CDC + BLE UART (`RC-Limiter-C3`) | GPIO3 → GPIO4 |
-| Official ESP32-C3-DevKitM-1 | `esp32c3-devkit` | Onboard USB-to-UART + BLE UART (`RC-Limiter-C3`) | GPIO3 → GPIO4 |
+| Original ESP32 DevKit / WROOM | `esp32` | USB-to-UART + Bluetooth Classic SPP (`RC-<device name>`) | GPIO27 → GPIO25 |
+| ESP32-C3 Super Mini, native USB | `esp32c3` | Native USB Serial/JTAG CDC + BLE UART (`RC-<device name>`) | GPIO3 → GPIO4 |
+| Official ESP32-C3-DevKitM-1 | `esp32c3-devkit` | Onboard USB-to-UART + BLE UART (`RC-<device name>`) | GPIO3 → GPIO4 |
 
 All four targets support 1–4 mappings and the same JSON configuration protocol. Every GPIO listed here is **3.3 V logic**, not a 5 V receiver input. A power pin marked 5V is different from GPIO5. For a measured 5 V receiver signal use the divider or buffer in [wiring.md](wiring.md).
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Protocol, defaults, validate, validateMappings, profile, nextMapping } from '../web/protocol.mjs';
+import { Protocol, validateDeviceName, defaults, validate, validateMappings, profile, nextMapping } from '../web/protocol.mjs';
 
 test('multiple mappings validate pins, fan-out, unique outputs and Pico PWM aliases', () => {
   const first = { ...defaults };
@@ -77,4 +77,10 @@ test('disconnect rejects requests and oversize frames trigger fault', async () =
   const request = p.request('get'); const rejected = assert.rejects(request, /Disconnected/);
   p.close(); await rejected;
   p.feed('x'.repeat(8193)); assert.match(fault.message, /Oversized/);
+});
+
+test('device names validate consistently without changing profile contents', () => {
+  for(const name of ['Boat port ESC','Boat-starboard','A','A.B_C-1234567890']) assert.equal(validateDeviceName(name),name);
+  for(const name of ['', ' leading','trailing ','12345678901234567','Boat\nESC','Boat/ESC','Böt', null]) assert.throws(()=>validateDeviceName(name));
+  assert.deepEqual(Object.keys(profile({version:2,mappings:[defaults]})).sort(),['mappings','version']);
 });

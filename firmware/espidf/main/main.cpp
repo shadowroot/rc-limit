@@ -1,6 +1,9 @@
 #include <cstring>
 #include <cstdlib>
 #include "model_json.hpp"
+#include "identity.h"
+#include "esp_mac.h"
+#include <cstdio>
 #include "transport.hpp"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
@@ -27,6 +30,32 @@ rc::Sample samples[rc::MAX_MAPPINGS];
 portMUX_TYPE captureMux=portMUX_INITIALIZER_UNLOCKED;
 bool storageReady=false,stored=false;
 uint32_t revision=0;
+char deviceName[identity::MAX_NAME+1]={},deviceId[17]={},bootName[identity::MAX_NAME+1]={};
+void initIdentity() {
+    uint8_t mac[6];ESP_ERROR_CHECK(esp_efuse_mac_get_default(mac));
+    snprintf(deviceId,sizeof(deviceId),"%02X%02X%02X%02X%02X%02X",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    snprintf(deviceName,sizeof(deviceName),"%s-%s",BOARD==rc::Board::Esp32C3?"C3":"ESP32",deviceId+6);
+    nvs_handle_t handle;
+    bool found=false;
+    if(storageReady && nvs_open("rc_limit",NVS_READONLY,&handle)==ESP_OK) {
+        char name[identity::MAX_NAME+1];size_t size=sizeof(name);
+        if(nvs_get_str(handle,"name",name,&size)==ESP_OK && identity::valid(name)) {strcpy(deviceName,name);found=true;}
+        nvs_close(handle);
+    }
+    if(!found && storageReady && nvs_open("eeprom",NVS_READONLY,&handle)==ESP_OK) {
+        uint8_t legacy[4096];size_t size=sizeof(legacy);
+        if(nvs_get_blob(handle,"eeprom",legacy,&size)==ESP_OK && size==sizeof(legacy)) identity::decode(legacy+sizeof(legacy)-identity::RECORD_SIZE,deviceName);
+        nvs_close(handle);
+    }
+    strcpy(bootName,deviceName);snprintf(io::bluetoothName,sizeof(io::bluetoothName),"RC-%s",bootName);
+}
+bool renameDevice(const char* name) {
+    if(!storageReady) return false;
+    nvs_handle_t handle;if(nvs_open("rc_limit",NVS_READWRITE,&handle)!=ESP_OK) return false;
+    bool ok=nvs_set_str(handle,"name",name)==ESP_OK && nvs_commit(handle)==ESP_OK;nvs_close(handle);
+    if(ok) strcpy(deviceName,name);
+    return ok;
+}
 void IRAM_ATTR capture(void* context) {
     int index=static_cast<int>(reinterpret_cast<uintptr_t>(context));
     portENTER_CRITICAL_ISR(&captureMux);
@@ -129,6 +158,8 @@ void response(io::Port& port,int id,const char* error=nullptr) {
     cJSON_AddBoolToObject(doc,"ok",!error);cJSON_AddNumberToObject(doc,"id",id);
     if(error) cJSON_AddStringToObject(doc,"error",error);
     cJSON_AddStringToObject(doc,"board",BOARD_NAME);cJSON_AddStringToObject(doc,"framework","esp-idf");
+    cJSON_AddStringToObject(doc,"device_name",deviceName);cJSON_AddStringToObject(doc,"device_id",deviceId);
+    cJSON_AddBoolToObject(doc,"name_pending_restart",strcmp(deviceName,bootName)!=0);
     cJSON_AddNumberToObject(doc,"protocol_version",2);cJSON_AddNumberToObject(doc,"max_mappings",rc::MAX_MAPPINGS);
     cJSON_AddBoolToObject(doc,"armed",bank.armed);cJSON_AddBoolToObject(doc,"signal_ok",bank.healthy);
     cJSON_AddNumberToObject(doc,"input_us",samples[0].pulse);cJSON_AddNumberToObject(doc,"output_us",bank.outputs[0]);
@@ -144,11 +175,11 @@ void response(io::Port& port,int id,const char* error=nullptr) {
     cJSON* transports=cJSON_AddObjectToObject(doc,"transports");
     cJSON_AddBoolToObject(transports,"usb_serial",true);cJSON_AddBoolToObject(transports,"bluetooth_serial",io::radioReady.load());
 #if CONFIG_IDF_TARGET_ESP32C3
-    cJSON_AddStringToObject(transports,"bluetooth_type","ble");cJSON_AddStringToObject(transports,"bluetooth_name","RC-Limiter-C3");
+    cJSON_AddStringToObject(transports,"bluetooth_type","ble");cJSON_AddStringToObject(transports,"bluetooth_name",io::bluetoothName);
     cJSON_AddStringToObject(transports,"ble_service","6e400001-b5a3-f393-e0a9-e50e24dcca9e");
     cJSON_AddStringToObject(transports,"usb_interface",RC_USB_NATIVE?"native_cdc":"usb_uart");
 #else
-    cJSON_AddStringToObject(transports,"bluetooth_type","classic_spp");cJSON_AddStringToObject(transports,"bluetooth_name","RC-Limiter");
+    cJSON_AddStringToObject(transports,"bluetooth_type","classic_spp");cJSON_AddStringToObject(transports,"bluetooth_name",io::bluetoothName);
 #endif
     char* json=cJSON_PrintUnformatted(doc);cJSON_Delete(doc);
     if(json) {port.send(json);cJSON_free(json);}
@@ -163,6 +194,12 @@ void command(io::Port& port,const char* line) {
     else if(!strcmp(cmd,"disarm")) {bank.disarm(mappings);writeOutputs();}
     else if(!strcmp(cmd,"arm")) {if(!bank.arm(mappings,static_cast<uint32_t>(esp_timer_get_time()))) error="hold_all_neutral_for_1s";}
     else if(bank.armed) error="disarm_first";
+    else if(!strcmp(cmd,"set_name")) {
+        const cJSON* value=cJSON_GetObjectItemCaseSensitive(doc,"name");
+        const char* name=cJSON_IsString(value)?value->valuestring:nullptr;
+        if(!identity::valid(name) || strstr(line,"\\u0000")) error="invalid_name";
+        else if(!renameDevice(name)) error="name_save_failed";
+    }
     else if(!strcmp(cmd,"set") || !strcmp(cmd,"set_mappings")) {
         rc::MappingSet next;bool valid=false;
         if(!strcmp(cmd,"set")) {
@@ -207,7 +244,7 @@ extern "C" void app_main() {
 #else
     mappings.channels[0].input_pin=27;mappings.channels[0].output_pin=25;
 #endif
-    storageReady=nvs_flash_init()==ESP_OK;stored=storageReady && loadConfig();
+    storageReady=nvs_flash_init()==ESP_OK;initIdentity();stored=storageReady && loadConfig();
     ESP_ERROR_CHECK(gpio_install_isr_service(ESP_INTR_FLAG_IRAM));attachHardware();
     io::usb.init();io::radio.init();io::initUsb();
     xTaskCreatePinnedToCore(controlTask,"rc_control",16384,nullptr,10,nullptr,xPortGetCoreID());

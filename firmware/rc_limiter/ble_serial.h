@@ -11,8 +11,8 @@ class BleSerial : public Stream {
   static constexpr const char* RX="6e400002-b5a3-f393-e0a9-e50e24dcca9e";
   static constexpr const char* TX="6e400003-b5a3-f393-e0a9-e50e24dcca9e";
   uint32_t epoch() { portENTER_CRITICAL(&mux); uint32_t e=generation; portEXIT_CRITICAL(&mux); return e; }
-  bool begin() {
-    BLEDevice::init("RC-Limiter-C3");
+  bool begin(const char* name="RC-Limiter-C3") {
+    BLEDevice::init(name);
     if(!BLEDevice::getInitialized()) return false;
     server=BLEDevice::createServer();
     if(!server) return false;

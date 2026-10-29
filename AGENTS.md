@@ -23,9 +23,10 @@ These are implementation choices, not additional original user requirements. Doc
 
 - One to four conventional RC PWM input-to-output mappings, with 50 Hz ESC outputs. Bus protocols such as SBUS, iBUS and DShot are outside the current implementation.
 - Firmware targets: RP2040 Pico, original ESP32 DevKit / WROOM-32, C3 Super Mini (native USB CDC) and official C3 DevKitM-1 (USB-to-UART). Other variants and Pico 2 need explicit implementation and validation.
-- Original ESP32 uses Classic SPP/RFCOMM as RC-Limiter. C3 uses Nordic UART Service BLE GATT as RC-Limiter-C3. Pico uses USB only. Keep Classic and BLE chooser paths distinct, serialize/chunk BLE writes and assemble notification fragments before parsing JSON.
+- Original ESP32 uses Classic SPP/RFCOMM. C3 uses Nordic UART Service BLE GATT. Both advertise RC- plus the saved device name after reboot. Pico uses USB only. Keep Classic and BLE chooser paths distinct, serialize/chunk BLE writes and assemble notification fragments before parsing JSON.
 - Default GPIO mapping: Pico GP4 input → GP5 output; ESP32 GPIO27 input → GPIO25 output; C3 GPIO3 input → GPIO4 output. GPIO numbers are not physical header positions.
 - Bidirectional pulse defaults: 1000 / 1500 neutral / 2000 µs, with 30% forward and reverse limits. Confirm the actual ESC neutral before motor operation.
+- Device names are per-board identity, independently persisted from mapping profiles. Preserve the hardware ID, name record/NVS key and discovery-by-service behavior; renaming must be rejected while armed and Bluetooth name changes take effect after reboot. USB descriptors are not user-renamed.
 - Both apps share the firmware's version 2 newline-delimited JSON protocol and profiles containing a `mappings` array of 15-field channel configurations. Import legacy single-channel profiles and saved configurations; preserve compatibility or document a coordinated migration.
 - The limiter constrains the ESC command. It does not measure or guarantee motor speed, current, torque or power.
 

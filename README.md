@@ -21,6 +21,8 @@ Use the [deployment scripts](docs/deploy.md) for setup, board flashing, Android 
 
 The default bidirectional output is 1000 / **1500 stop** / 2000 µs, with 30% in each direction: **1350–1650 µs** at full stick. Verify your ESC uses 1500 µs as stop. Car ESC reverse/brake sequencing varies; the limiter only transforms pulses.
 
+After connecting, use **Device identity → Save device name** to label each board (for example `Boat port ESC`). Names persist through settings-preserving updates; Bluetooth uses `RC-` plus the name after a restart. USB sessions display the name and stable hardware ID.
+
 ## Multiple pin mappings
 
 Use **+ Add mapping** in the web/Electron GUI or **+ Mapping** in Android. Select a mapping to edit its GPIOs, pulse calibration, forward/reverse limits and timeout. Edits remain in the form until **Apply all mappings / Apply all**, followed by **Save to flash / Save flash** for persistence. Each mapping has independent limits and live telemetry; arming/disarming applies to the whole board.
@@ -44,8 +46,8 @@ Profiles now export as `{"version":2,"mappings":[...]}`. Old single-channel prof
 
 USB serial is available on every target. Pico and the C3 Super Mini use native USB CDC; the original ESP32 DevKit and C3 DevKitM-1 use their USB-to-UART bridges. Use 115200 baud for UART bridges. Native CDC clients assert DTR for recognized Pico/Espressif USB interfaces.
 
-- **Original ESP32:** Bluetooth Classic SPP starts as **RC-Limiter** alongside USB. Pair with the OS, then use the USB / Classic serial chooser, or Android's Bluetooth button.
-- **ESP32-C3:** BLE UART starts as **RC-Limiter-C3** alongside USB. Use **Connect C3 BLE serial** in web/Electron or **BLE C3** in Android. No prior OS pairing is required. It uses the Nordic UART Service (GATT), not a virtual COM port.
+- **Original ESP32:** Bluetooth Classic SPP starts as **RC-&lt;device name&gt;** (default `RC-ESP32-XXXXXX`) alongside USB. Pair with the OS, then use the USB / Classic serial chooser, or Android's Bluetooth button.
+- **ESP32-C3:** BLE UART starts as **RC-&lt;device name&gt;** (default `RC-C3-XXXXXX`) alongside USB. Use **Connect C3 BLE serial** in web/Electron or **BLE C3** in Android. No prior OS pairing is required. It uses the Nordic UART Service (GATT), not a virtual COM port.
 - **Pico:** USB only; no onboard Bluetooth on a standard Pico, and no Pico W Bluetooth stack is implemented here.
 
 The same JSON commands, four mappings and arming rules work over each transport. Use one controller at a time. Bluetooth transports have no application authentication in this prototype; use a controlled bench environment. A link loss does not guarantee delivery of disarm.
@@ -74,7 +76,7 @@ cd rc-limit
 python3 -m http.server 8080 --bind 127.0.0.1 --directory web
 ```
 
-Open **http://localhost:8080** in desktop Chrome or Edge. Choose **Connect USB / Classic serial**, then your board. USB works on all targets. Pair `RC-Limiter` with the operating system first for ESP32 Bluetooth Classic SPP; the port picker must expose that serial service. Support depends on the browser/OS. Use Electron or Android when it does not. Use the separate **Connect C3 BLE serial** button for the C3 GATT UART service; browser/OS Web Bluetooth availability varies.
+Open **http://localhost:8080** in desktop Chrome or Edge. Choose **Connect USB / Classic serial**, then your board. USB works on all targets. Pair the board’s `RC-<device name>` with the operating system first for ESP32 Bluetooth Classic SPP; the port picker must expose that serial service. Support depends on the browser/OS. Use Electron or Android when it does not. Use the separate **Connect C3 BLE serial** button for the C3 GATT UART service; browser/OS Web Bluetooth availability varies.
 
 The firmware updater bundle is built with `npm ci --ignore-scripts` followed by `npm run build:web`; `deploy.sh web` prepares it automatically. Configuration alone can still run from the unbundled sources.
 
@@ -98,8 +100,8 @@ The same web UI runs inside Electron with a device chooser. Node integration is 
 Open `android/` in Android Studio, allow Gradle sync, and run the app on an Android 8+ phone/tablet. Or use `cd android && ./gradlew assembleDebug` with Android SDK 35 installed. See [build instructions](docs/build.md).
 
 - **USB OTG:** connect a data cable/OTG adapter, tap USB OTG, select the board and grant USB permission. Pico uses CDC ACM; ESP32 commonly uses CP210x, CH340, or FTDI USB UART. Supported by usb-serial-for-android.
-- **Bluetooth:** pair `RC-Limiter` in Android settings, tap Bluetooth, grant Nearby devices permission on Android 12+, and choose the paired ESP32. It uses RFCOMM/SPP; no scan or location permission is needed for this path.
-- **BLE C3:** tap BLE C3, grant Bluetooth scan/connect permissions on Android 12+, and choose the advertising RC-Limiter-C3 UART device. Android 8–11 requires Location permission and system Location enabled for BLE scanning. USB remains available if wireless permission is denied.
+- **Bluetooth:** pair the board’s `RC-<device name>` in Android settings, tap Bluetooth, grant Nearby devices permission on Android 12+, and choose the paired ESP32. It uses RFCOMM/SPP; no scan or location permission is needed for this path.
+- **BLE C3:** tap BLE C3, grant Bluetooth scan/connect permissions on Android 12+, and choose the advertising `RC-<device name>` UART device. Android 8–11 requires Location permission and system Location enabled for BLE scanning. USB remains available if wireless permission is denied.
 - Read board → edit → **DISARM** → Apply RAM → Save flash. Hold the receiver at neutral for one second before **ARM**. Input/output pulses and signal status update live.
 - Import/export profiles through the system document picker. Going to the background or leaving the app requests disarm and disconnects; delivery is not guaranteed if the connection fails. Reconnect explicitly after returning.
 

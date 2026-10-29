@@ -114,3 +114,9 @@ export class Protocol {
     this.pending.clear();
   }
 }
+
+export function validateDeviceName(name) {
+  if (typeof name !== 'string' || !/^[A-Za-z0-9 ._-]{1,16}$/.test(name) || name.startsWith(' ') || name.endsWith(' '))
+    throw new Error('Use 1–16 letters, numbers, spaces, dots, underscores or hyphens, without outer spaces.');
+  return name;
+}

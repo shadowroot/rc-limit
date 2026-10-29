@@ -30,6 +30,7 @@ extern Port usb,radio;
 extern std::atomic<bool> radioReady;
 void initUsb();
 void initRadio();
+extern char bluetoothName[20];
 void txTask(void* context);
 bool sendRadio(const uint8_t* data,size_t size,uint32_t epoch);
 }

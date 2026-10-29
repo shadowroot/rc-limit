@@ -35,3 +35,9 @@ bash scripts/check.sh
 Only the updater requires the bundle; the configuration modules remain usable directly. `npm start` and `npm run package` build the bundle automatically. Release CI's Electron packaging hook prepares the bundle before archiving `web/`. When merging the GitHub Pages branch, its build step runs `npm run build:web --if-present` before uploading the site. No CDN script or cross-origin firmware fetch is needed. Third-party licenses are included under `web/dist/third-party-licenses.txt`.
 
 The optional `tests/firmware-ui-smoke.cjs` needs Playwright/Chromium and real ZIPs in `build/releases/`. It validates loading under `/rc-limit/`, wrong-board rejection, power acknowledgement, simulated USB chooser cancellation/recovery and Pico download. Flash planning tests use mocked loaders; physical bootloader, flash verification, reset, reconnect and settings retention still require testing on each actual board. No hardware is flashed by the tests.
+
+## Naming boards after an update
+
+After reboot, connect the updated board, find **Device identity**, enter e.g. `Boat port ESC`, and click **Save device name** while disarmed. Native Android has the same name field/button. The name is saved immediately on the board, independently of throttle settings. Names remain through later updates that preserve the settings area. New/unnamed boards show a unique hardware-derived default and every reply also includes the stable hardware ID.
+
+Restart a Bluetooth board with motor power disconnected to advertise `RC-` plus its new name. USB port-picker labels may remain generic; the app shows the custom name/ID after connecting. See [device identity protocol](protocol.md#device-identity-and-naming) for allowed characters and storage/downgrade details.

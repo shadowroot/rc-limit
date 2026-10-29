@@ -39,6 +39,9 @@ public class MainActivity extends Activity {
     private int nextId=0, generation=0;
     private volatile Link link;
     private TextView status, notice;
+    private EditText deviceName;
+    private Button renameButton;
+    private String lastDeviceName="",lastDeviceId="";
     private Button applyButton,saveButton,armButton;
     private UsbManager usb;
     private boolean active=false, ready=false, connecting=false;
@@ -94,6 +97,13 @@ public class MainActivity extends Activity {
         button(connections,"BLE C3",this::chooseBle,false);
         button(connections,"Disconnect",()->disconnect(true),false);
         notice=text(layout,"Defaults shown until Read board. Pico: USB. Original ESP32: USB / Classic. C3: USB / BLE C3.");
+        deviceName=new EditText(this);deviceName.setSingleLine(true);deviceName.setHint("Device name (1–16 characters)");layout.addView(deviceName);
+        renameButton=button(row(layout),"Save device name",()->{
+            String name=deviceName.getText().toString();
+            if(!name.matches("[A-Za-z0-9 ._-]{1,16}") || name.startsWith(" ") || name.endsWith(" ")) {tell("Use 1–16 letters, numbers, spaces, dots, underscores or hyphens; no outer spaces.");return;}
+            try {send("set_name",new JSONObject().put("name",name),data->tell("Name saved. Restart with motor power disconnected to update Bluetooth discovery."));}
+            catch(JSONException error) {tell(error.getMessage());}
+        },true);
         button(row(layout),"Board layouts / suggested GPIOs / 5 V resistors",this::showBoardGuide,false);
         text(layout,"Receiver → ESC mappings (1–4). Limits below apply to the selected mapping.");
         mappingSelector=new Spinner(this); layout.addView(mappingSelector);
@@ -412,7 +422,8 @@ public class MainActivity extends Activity {
         try {
             int id=++nextId; JSONObject request=new JSONObject().put("cmd",command).put("id",id);
             if(config!=null) {
-                if(command.equals("set_mappings")) request.put("mappings",config.getJSONArray("mappings"));
+                if(command.equals("set_name")) request.put("name",config.getString("name"));
+                else if(command.equals("set_mappings")) request.put("mappings",config.getJSONArray("mappings"));
                 else request.put("config",config);
             }
             Runnable timeout=()->{
@@ -432,7 +443,13 @@ public class MainActivity extends Activity {
             JSONObject data=new JSONObject(json); if(!data.has("ok")) return;
             boolean armed=data.getBoolean("armed"), healthy=data.getBoolean("signal_ok");
             boardArmed=armed; currentBoard=data.getString("board"); protocolVersion=data.optInt("protocol_version",1);
-            StringBuilder live=new StringBuilder(currentBoard+" · "+(armed?"ARMED":"DISARMED")+" · RX "+(healthy?"ALL OK":"LOST / INVALID")+
+            String name=data.optString("device_name",""),identity=data.optString("device_id","");
+            boolean names=data.has("device_name") && data.has("device_id");renameButton.setEnabled(names && !armed);
+            if(names) {
+                if(!identity.equals(lastDeviceId) || deviceName.getText().toString().equals(lastDeviceName)) deviceName.setText(name);
+                lastDeviceName=name;lastDeviceId=identity;
+            }
+            StringBuilder live=new StringBuilder((names?name+" · ID "+identity+"\n":"")+currentBoard+" · "+(armed?"ARMED":"DISARMED")+" · RX "+(healthy?"ALL OK":"LOST / INVALID")+
                 " · "+(data.getBoolean("saved")?"SAVED":"RAM ONLY"));
             JSONArray states=data.optJSONArray("channel_states"),configs=data.optJSONArray("mappings");
             if(states!=null && configs!=null) for(int i=0;i<states.length();i++) {
@@ -442,6 +459,7 @@ public class MainActivity extends Activity {
             } else live.append("\nIN ").append(data.getInt("input_us")).append(" → OUT ").append(data.getInt("output_us")).append(" µs");
             JSONObject transports=data.optJSONObject("transports");
             live.append("\nUSB serial enabled · Bluetooth: ").append(transports!=null?(transports.optBoolean("bluetooth_serial")?transports.optString("bluetooth_name"):"unavailable"):(currentBoard.equals("esp32")?"RC-Limiter":"unavailable"));
+            if(data.optBoolean("name_pending_restart")) live.append("\nName saved; restart to update Bluetooth discovery.");
             status.setText(live.toString());
             applyButton.setEnabled(!armed); saveButton.setEnabled(!armed); armButton.setEnabled(!armed && healthy);
             addMappingButton.setEnabled(!armed && draftMappings.size()<4); removeMappingButton.setEnabled(!armed && draftMappings.size()>1);
@@ -464,7 +482,7 @@ public class MainActivity extends Activity {
     private void disconnect(boolean stop) {
         Link old=link; link=null; ready=connecting=false; generation++; requestedDevice=null;
         for(Pending p:pending.values()) ui.removeCallbacks(p.timeout); pending.clear(); enable(false);
-        boardArmed=false; status.setText("OFFLINE · output state unknown");
+        lastDeviceName=lastDeviceId="";boardArmed=false; status.setText("OFFLINE · output state unknown");
         addMappingButton.setEnabled(draftMappings.size()<4); removeMappingButton.setEnabled(draftMappings.size()>1);
         if(old!=null) {
             if(old instanceof BleLink) ui.postDelayed(()->closeQuietly(old),1200);

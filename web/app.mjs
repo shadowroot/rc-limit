@@ -1,4 +1,4 @@
-import { fields, defaults, validate, validateMappings, profile, nextMapping, Protocol } from './protocol.mjs';
+import { fields, defaults, validateDeviceName, validate, validateMappings, profile, nextMapping, Protocol } from './protocol.mjs';
 import { openBle } from './ble.mjs';
 import { loadBoardProfiles, drawBoard, boardForFirmware } from './boards.mjs';
 const $ = id => document.getElementById(id);
@@ -25,6 +25,7 @@ function form() {
   return validate(config);
 }
 fill(defaults);
+let lastDeviceName, lastDeviceId;
 let draftMappings = [{ ...defaults }], selectedMapping = 0, boardName, latestData, protocolVersion = 1;
 function stashMapping() { draftMappings[selectedMapping] = form(); }
 function renderMappings() {
@@ -78,6 +79,14 @@ function deviceButtons(connected) {
 deviceButtons(false);
 function status(data) {
   const previousBoard = boardName;
+  const supportsNames = typeof data.device_name === 'string' && typeof data.device_id === 'string';
+  $('rename-device').disabled = !supportsNames || !!data.armed;
+  if (supportsNames) {
+    if (lastDeviceId !== data.device_id || $('device-name').value === lastDeviceName || $('device-name').value === data.device_name) $('device-name').value = data.device_name;
+    lastDeviceName = data.device_name; lastDeviceId = data.device_id;
+    $('device-identity').textContent = `${data.device_name} · ${data.board} · ID ${data.device_id}`;
+    $('name-note').textContent = data.name_pending_restart ? 'Name saved. Restart the board with motor power disconnected to update Bluetooth discovery.' : 'Name is stored on this board and retained by settings-preserving firmware updates.';
+  } else { $('device-identity').textContent = 'Upgrade firmware to name this board.'; }
   latestData = data; boardName = data.board; protocolVersion = data.protocol_version || 1;
   $('board').textContent = data.board === 'esp32c3' ? 'ESP32-C3 · USB / BLE serial' : data.board === 'esp32' ? 'ESP32 · USB / Bluetooth SPP' : 'Raspberry Pi Pico · USB serial';
   if (boardProfiles.length && previousBoard !== boardName) $('board-layout').value = boardForFirmware(data.board, data.transports?.usb_interface).id;
@@ -181,7 +190,8 @@ async function disconnect(requestStop = true) {
   $('armed').textContent = 'UNKNOWN'; $('signal').textContent = 'No live telemetry';
   $('input').textContent = $('output').textContent = '—';
   $('mapping-summary').textContent = 'Disconnected; read the board to view live mappings.';
-  latestData = undefined;
+  latestData = undefined; lastDeviceName = lastDeviceId = undefined;
+  $('device-identity').textContent = 'Disconnected; reconnect to identify the board.';
   $('add-mapping').disabled = draftMappings.length >= 4;
   $('remove-mapping').disabled = draftMappings.length <= 1;
   connecting = closing = false; deviceButtons(false);
@@ -191,7 +201,7 @@ async function action(cmd, extra = {}, load = false) {
     if (!protocol) throw new Error('Connect a board first.');
     const data = await protocol.request(cmd, extra);
     if (load) loadMappings(data);
-    message(({ set: 'Settings applied to RAM. Save to flash to retain them after power-off.', set_mappings: 'Settings applied to RAM. Save to flash to retain all mappings after power-off.', save: 'Settings saved to board flash.',
+    message(({ set_name: data.name_pending_restart ? 'Device name saved. Bluetooth discovery changes after restarting the board.' : 'Device name saved.', set: 'Settings applied to RAM. Save to flash to retain them after power-off.', set_mappings: 'Settings applied to RAM. Save to flash to retain all mappings after power-off.', save: 'Settings saved to board flash.',
       arm: 'Board armed. Transmitter controls throttle within the configured limits.', disarm: 'Board confirmed DISARM. Stop pulse is active.',
       get: 'Board settings loaded into the form.' })[cmd]);
   } catch (error) { message(error.message); }
@@ -200,6 +210,9 @@ $('config-form').addEventListener('submit', e => e.preventDefault());
 $('connect').onclick = connect;
 $('connect-ble').onclick = connectBle;
 $('disconnect').onclick = () => disconnect();
+$('rename-device').onclick = () => {
+  try { void action('set_name', { name: validateDeviceName($('device-name').value) }); } catch (error) { message(error.message); }
+};
 $('read').onclick = () => action('get', {}, true);
 $('apply').onclick = () => {
   try {

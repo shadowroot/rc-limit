@@ -2,6 +2,7 @@
 #include <ArduinoJson.h>
 #include <EEPROM.h>
 #include "limiter.h"
+#include "identity.h"
 #if defined(ARDUINO_ARCH_ESP32)
 #include <esp_task_wdt.h>
 #if defined(CONFIG_IDF_TARGET_ESP32C3)
@@ -22,6 +23,7 @@ portMUX_TYPE captureMux = portMUX_INITIALIZER_UNLOCKED;
 #define ISR_ATTR IRAM_ATTR
 #else
 #include <hardware/pwm.h>
+#include <pico/unique_id.h>
 #include <hardware/clocks.h>
 #define ISR_ATTR
 const rc::Board BOARD=rc::Board::Pico;
@@ -39,6 +41,34 @@ uint32_t revision=0;
 int requestId=0;
 bool stored=false,bluetoothStarted=false,storageReady=false;
 const int STORAGE=4096;
+char deviceName[identity::MAX_NAME+1]={},deviceId[17]={},bootName[identity::MAX_NAME+1]={},bluetoothName[20]={};
+void initIdentity() {
+#if defined(ARDUINO_ARCH_ESP32)
+  uint64_t mac=ESP.getEfuseMac();
+  const uint8_t* bytes=reinterpret_cast<const uint8_t*>(&mac);
+  snprintf(deviceId,sizeof(deviceId),"%02X%02X%02X%02X%02X%02X",bytes[0],bytes[1],bytes[2],bytes[3],bytes[4],bytes[5]);
+#else
+  pico_get_unique_board_id_string(deviceId,sizeof(deviceId));
+#endif
+  const char* prefix=BOARD==rc::Board::Pico?"Pico":BOARD==rc::Board::Esp32C3?"C3":"ESP32";
+  snprintf(deviceName,sizeof(deviceName),"%s-%s",prefix,deviceId+strlen(deviceId)-6);
+  if(storageReady) {
+    uint8_t record[identity::RECORD_SIZE];
+    for(size_t i=0;i<sizeof(record);i++) record[i]=EEPROM.read(STORAGE-sizeof(record)+i);
+    identity::decode(record,deviceName);
+  }
+  strcpy(bootName,deviceName);snprintf(bluetoothName,sizeof(bluetoothName),"RC-%s",deviceName);
+}
+bool renameDevice(const char* name) {
+  if(!storageReady) return false;
+  uint8_t record[identity::RECORD_SIZE],old[identity::RECORD_SIZE];identity::encode(record,name);
+  for(size_t i=0;i<sizeof(record);i++) {old[i]=EEPROM.read(STORAGE-sizeof(record)+i);EEPROM.write(STORAGE-sizeof(record)+i,record[i]);}
+  if(!EEPROM.commit()) {
+    for(size_t i=0;i<sizeof(old);i++) EEPROM.write(STORAGE-sizeof(old)+i,old[i]);
+    return false;
+  }
+  strcpy(deviceName,name);return true;
+}
 const uint32_t MAGIC=0x52434c32,LEGACY_MAGIC=0x52434c31;
 
 // One interrupt per unique input pin; shared inputs fan out to all matching mappings.
@@ -159,7 +189,7 @@ bool saveConfig() {
   if(!storageReady) return false;
   JsonDocument doc;
   doc["version"]=2; encodeMappings(doc["mappings"].to<JsonArray>());
-  char data[STORAGE-12];
+  char data[STORAGE-12-identity::RECORD_SIZE];
   size_t len=serializeJson(doc,data,sizeof(data));
   if(len==0 || len>=sizeof(data)) return false;
   EEPROM.put(0,MAGIC);
@@ -211,6 +241,8 @@ void response(Stream& io,const char* error=nullptr) {
 #else
   doc["board"]="pico";
 #endif
+  doc["device_name"]=deviceName;doc["device_id"]=deviceId;
+  doc["name_pending_restart"]=BOARD!=rc::Board::Pico && strcmp(deviceName,bootName)!=0;
   doc["protocol_version"]=2; doc["max_mappings"]=rc::MAX_MAPPINGS;
   doc["armed"]=bank.armed; doc["signal_ok"]=bank.healthy;
   // Legacy clients can still inspect channel 1. Legacy set cannot erase multiple mappings.
@@ -228,7 +260,7 @@ void response(Stream& io,const char* error=nullptr) {
   transports["usb_serial"]=true; transports["bluetooth_serial"]=bluetoothStarted;
 #if defined(CONFIG_IDF_TARGET_ESP32C3)
   transports["bluetooth_type"]="ble";
-  transports["bluetooth_name"]="RC-Limiter-C3";
+  transports["bluetooth_name"]=bluetoothName;
   transports["ble_service"]=BleSerial::SERVICE;
 #if ARDUINO_USB_CDC_ON_BOOT
   transports["usb_interface"]="native_cdc";
@@ -237,7 +269,7 @@ void response(Stream& io,const char* error=nullptr) {
 #endif
 #else
   transports["bluetooth_type"]=bluetoothStarted?"classic_spp":"none";
-  if(bluetoothStarted) transports["bluetooth_name"]="RC-Limiter";
+  if(bluetoothStarted) transports["bluetooth_name"]=bluetoothName;
 #endif
   serializeJson(doc,io); io.println();
 }
@@ -252,6 +284,11 @@ void command(Stream& io,const char* line) {
   if(!strcmp(cmd,"disarm")) { bank.disarm(mappings); writeOutputs(); response(io); return; }
   if(!strcmp(cmd,"arm")) { bool ok=bank.arm(mappings,micros()); response(io,ok?nullptr:"hold_all_neutral_for_1s"); return; }
   if(bank.armed) { response(io,"disarm_first"); return; }
+  if(!strcmp(cmd,"set_name")) {
+    const char* name=doc["name"].is<const char*>()?doc["name"].as<const char*>():nullptr;
+    if(!identity::valid(name) || strstr(line,"\\u0000")) {response(io,"invalid_name");return;}
+    response(io,renameDevice(name)?nullptr:"name_save_failed");return;
+  }
   if(!strcmp(cmd,"set") || !strcmp(cmd,"set_mappings")) {
     rc::MappingSet next;
     if(!strcmp(cmd,"set")) {
@@ -294,13 +331,13 @@ void setup() {
 #else
   EEPROM.begin(STORAGE); storageReady=EEPROM.length()==STORAGE;
 #endif
-  stored=storageReady && loadConfig();
+  initIdentity();stored=storageReady && loadConfig();
   attachHardware(); Serial.begin(115200);
 #if defined(ARDUINO_ARCH_ESP32)
 #if defined(CONFIG_IDF_TARGET_ESP32C3)
-  bluetoothStarted=BT.begin();
+  bluetoothStarted=BT.begin(bluetoothName);
 #else
-  bluetoothStarted=BT.begin("RC-Limiter");
+  bluetoothStarted=BT.begin(bluetoothName);
 #endif
   esp_task_wdt_init(2,true); esp_task_wdt_add(nullptr);
 #else
