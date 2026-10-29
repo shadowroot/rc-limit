@@ -99,6 +99,8 @@ cd android
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+Gradle’s build cache is enabled. Prefer the normal incremental command above; use `clean` or `--rerun-tasks` only when needed for diagnosis. CI restores dependencies/task caches and pinned SDK command-line tools.
+
 Use `gradlew.bat` on Windows. Set the SDK location in Android Studio or untracked `local.properties` (`sdk.dir=/your/sdk/path`), or supply `ANDROID_HOME`.
 
 The debug APK is for local testing and is debug signed. Release distribution requires your own signing configuration and physical testing. Minimum Android is API 26 (Android 8), target/compile API 35. USB OTG host hardware and a data cable are required for USB. Classic SPP works with the original ESP32; BLE UART works with ESP32-C3 on a BLE-capable phone.

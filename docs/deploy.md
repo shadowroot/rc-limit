@@ -87,6 +87,8 @@ adb devices
 ./scripts/deploy.sh android --serial YOUR_DEVICE_ID --launch
 ```
 
+Local Android builds reuse Gradle’s daemon and build cache, so repeated builds avoid JVM startup and unchanged compilation. To stop the idle daemon, run `cd android && ./gradlew --stop`.
+
 This checks the specified device, builds a debug APK with the Gradle wrapper, copies it to `build/android/rc-limit-debug.apk`, installs it with `adb install -r`, and launches it when `--launch` is supplied. Without `--launch`, it installs only. A device ID is mandatory even when only one phone is connected. The scripts never select an arbitrary phone or emulator.
 
 Build an APK without connecting a device, or install an already built APK:

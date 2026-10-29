@@ -73,6 +73,21 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Restore Gradle dependencies and task outputs
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - name: Select Android SDK location
+        shell: bash
+        run: |
+          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$RUNNER_TEMP/android-sdk}}"
+          echo "ANDROID_HOME=$sdk_root" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$sdk_root" >> "$GITHUB_ENV"
+      - name: Restore pinned Android command-line tools
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ANDROID_HOME }}/cmdline-tools/16.0
+          key: android-cmdline-${{ runner.os }}-${{ runner.arch }}-12266719
       - name: Install Android SDK packages
         uses: android-actions/setup-android@v3
         with:
