@@ -49,3 +49,13 @@ python3 scripts/package-firmware.py esp32c3
 ```
 
 Output: `build/releases/rc-limit-esp32c3.zip`. No device is opened by packaging. CI downloads pinned toolchains on its first run and caches PlatformIO packages by board and configuration hash.
+
+## GitHub Pages continuous deployment
+
+`.github/workflows/pages.yml` validates and uploads only `web/`. Web-related changes on `main` deploy automatically; pull requests validate/upload a preview artifact without publishing. Manual runs on `main` deploy the current web UI. The deployment job uses the `github-pages` environment and limited `pages: write` / `id-token: write` permissions. No PAT or cloud service is needed.
+
+One-time repository setup: open **Settings → Pages → Build and deployment → Source → GitHub Actions**. The connected GitHub app cannot access this repository's administration settings, so this setting must be enabled by a repository admin. Then run **Deploy web UI to GitHub Pages** from Actions on `main`, or merge a web change. See [GitHub's publishing-source instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
+
+Expected URL after a successful deployment: **https://shadowroot.github.io/rc-limit/**. The app uses relative module, stylesheet and board-data paths; browser integration checks serve it under `/rc-limit/` to exercise project-site hosting. HTTPS supplies a secure context; browser and OS support for Web Serial/Web Bluetooth and explicit device permission are still required. This is the static configuration app; board communication stays between the browser and the selected USB/Bluetooth device.
+
+Feature branches do not deploy production. Merge the Pages feature branch into `main` to activate its trigger. Firmware and Android/Electron build failures do not gate Pages; its own application checks must pass. The release workflow remains separate.
