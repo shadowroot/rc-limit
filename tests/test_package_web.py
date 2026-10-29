@@ -18,7 +18,7 @@ class WebPackageTests(unittest.TestCase):
             for name in web.ASSETS:
                 file = root / 'web' / name
                 file.parent.mkdir(parents=True, exist_ok=True)
-                file.write_text(name)
+                file.write_text('{"version":1,"release":null,"boards":[]}' if name == "firmware/catalog.json" else name)
             original = web.bundle(root)
             self.assertEqual(original, web.bundle(root))
             with zipfile.ZipFile(io.BytesIO(original)) as archive:
@@ -37,4 +37,15 @@ class WebPackageTests(unittest.TestCase):
             self.assertFalse(web.matches(b'corrupt ZIP', original))
             (root / 'web/dist/updater.mjs').unlink()
             with self.assertRaises(FileNotFoundError):
+                web.bundle(root)
+
+    def test_partial_stable_firmware_catalog_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in web.ASSETS:
+                file = root / 'web' / name
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_text(name)
+            (root / 'web/firmware/catalog.json').write_text('{"version":1,"release":{"tag":"v1"},"boards":[{"board":"pico"}]}')
+            with self.assertRaisesRegex(ValueError, 'all four'):
                 web.bundle(root)

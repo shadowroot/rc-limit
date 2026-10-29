@@ -132,8 +132,14 @@ jobs:
           python-version: '3.12'
       - run: npm ci --ignore-scripts
       - run: npm run build:web
-      - name: Verify and package README static download
+      - name: Verify source UI snapshot
         run: python3 scripts/package-web.py --check
+      - name: Bundle latest published stable firmware
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/fetch-stable-firmware.py
+      - name: Package standalone UI with stable firmware
+        run: python3 scripts/package-web.py
       - uses: actions/upload-artifact@v4
         with:
           name: app-web

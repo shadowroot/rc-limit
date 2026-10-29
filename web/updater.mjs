@@ -2,22 +2,32 @@ import { ESPLoader, Transport } from 'esptool-js';
 import { unzipSync } from 'fflate';
 import SparkMD5 from 'spark-md5';
 import { validateBundle, flashBundle } from './firmware.mjs';
+import { validateCatalog, fetchStablePackage } from './stable.mjs';
 const $ = id => document.getElementById(id);
 export function initUpdater({ canUpdate, setBusy }) {
-  let bundle, busy = false;
+  let bundle, busy = false, catalog;
+  const catalogUrl = new URL('./firmware/catalog.json', document.baseURI);
   const controls = ['update-board', 'update-file', 'update-ack', 'update-check'];
   const message = text => { $('update-status').textContent = text; };
+  function stableSelection() {
+    const item = catalog?.boards.find(item => item.board === $('update-board').value);
+    const link = $('stable-firmware-download');
+    link.hidden = !item;
+    if (item) { const url = new URL(item.file, catalogUrl);url.searchParams.set('sha256', item.sha256);link.href = url.href; link.download = `rc-limit-${item.board}.zip`; }
+    $('stable-firmware-use').disabled = busy || !item || !item.updater_supported;
+    if (item) $('stable-firmware-status').textContent = `Bundled stable release: ${catalog.release.tag}. ` + (item.updater_supported ? 'Download or load the selected board firmware.' : 'This older package is download-only; use its CLI flashing instructions.');
+  }
   function buttons() {
     controls.forEach(id => { $(id).disabled = busy; });
     $('update-flash').disabled = busy || !bundle || bundle.board === 'pico' || !$('update-ack').checked || !navigator.serial;
+    stableSelection();
     $('update-uf2').disabled = busy || !bundle || bundle.board !== 'pico' || !$('update-ack').checked;
   }
   function invalidate() { bundle = undefined; $('update-progress').value = 0; buttons(); message('Select the matching release ZIP, then verify it.'); }
   $('update-board').onchange = invalidate; $('update-file').onchange = invalidate; $('update-ack').onchange = buttons;
-  $('update-check').onclick = async () => {
+  async function verifyFile(file) {
     bundle = undefined; busy = true; buttons();
     try {
-      const file = $('update-file').files[0];
       if (!file || file.size > 6 * 1024 * 1024) throw new Error('Select an RC Limit firmware ZIP no larger than 6 MiB.');
       let total = 0; const seen = new Set();
       const allowed = ['update-manifest.json', 'firmware.uf2', 'bootloader.bin', 'partitions.bin', 'firmware.bin'];
@@ -33,7 +43,26 @@ export function initUpdater({ canUpdate, setBusy }) {
       message(`Verified ${bundle.board} · source ${bundle.commit.slice(0, 12)}. ${bundle.board === 'pico' ? 'Export the UF2 and copy it to the BOOTSEL volume.' : 'Ready to choose a USB port and flash.'}`);
     } catch (error) { message(error.message); }
     finally { busy = false; buttons(); }
+  }
+  $('update-check').onclick = () => verifyFile($('update-file').files[0]);
+  $('stable-firmware-use').onclick = async () => {
+    const item = catalog?.boards.find(item => item.board === $('update-board').value);
+    if (!item || !item.updater_supported || busy) return;
+    busy = true; buttons();
+    try {
+      const bytes = await fetchStablePackage(item, catalogUrl);
+      await verifyFile(new File([bytes], `rc-limit-${item.board}.zip`, { type: 'application/zip' }));
+    } catch (error) { bundle = undefined; message(error.message); }
+    finally { busy = false; buttons(); }
   };
+  fetch(catalogUrl, { cache: 'no-store' }).then(response => {
+    if (!response.ok) throw new Error('Stable catalog unavailable.');
+    return response.json();
+  }).then(value => {
+    catalog = validateCatalog(value);
+    $('stable-firmware-status').textContent = catalog.release ? `Bundled stable release: ${catalog.release.tag}. Choose your exact board to download or load its firmware.` : 'No published stable firmware is bundled. You can still select a release ZIP manually.';
+    stableSelection();
+  }).catch(error => { $('stable-firmware-status').textContent = error.message + ' You can select a release ZIP manually.'; });
   $('update-uf2').onclick = () => {
     if (!bundle || bundle.board !== 'pico' || !$('update-ack').checked || !canUpdate()) { message('Disconnect the configuration session before updating.'); return; }
     const url = URL.createObjectURL(new Blob([bundle.images[0].data]));

@@ -58,3 +58,6 @@ firmware/espidf/dependencies.lock
 
 # Browser firmware updater bundle; built by npm run build:web
 web/dist/
+
+# Stable release firmware is downloaded into distribution builds.
+web/firmware/stable/

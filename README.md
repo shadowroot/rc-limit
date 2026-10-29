@@ -71,7 +71,9 @@ C3 build/flash examples:
 
 **[Open the web UI on GitHub Pages](https://shadowroot.github.io/rc-limit/)** · [Deployment setup](docs/releases.md#github-pages)
 
-**[Download the prebuilt static web UI](downloads/rc-limit-web.zip?raw=true)** — includes the firmware updater, board layouts and licenses. No Node.js build is needed to use this ZIP.
+**[Download the static web UI with latest stable firmware](https://shadowroot.github.io/rc-limit/rc-limit-web.zip)** — includes firmware for all four boards, the updater, board layouts and licenses. No Node.js build is needed to use this ZIP.
+
+The hosted UI and standalone release ZIP bundle the latest **published, non-prerelease** firmware. The updater panel offers per-board downloads and **Use bundled stable firmware**. No stable release yet? Use the [UI-only development snapshot](downloads/rc-limit-web.zip?raw=true) or the `app-web` CI artifact; development builds are never automatically labelled stable. The standalone ZIP is also refreshed on [mutable stable GitHub releases](https://github.com/shadowroot/rc-limit/releases/latest/download/rc-limit-web.zip).
 
 Extract it and run from the extracted directory:
 

@@ -11,9 +11,9 @@ async function main() {
     const pathname = new URL(req.url, 'http://localhost').pathname;
     if (!pathname.startsWith('/rc-limit/')) { res.writeHead(404).end();return; }
     const name = pathname.slice('/rc-limit/'.length) || 'index.html';
-    if (!/^(?:[\w-]+\.(?:html|css|mjs)|dist\/[\w.-]+|hardware\/boards.json)$/.test(name)) { res.writeHead(404).end();return; }
+    if (!/^(?:[\w-]+\.(?:html|css|mjs)|dist\/[\w.-]+|hardware\/boards.json|firmware\/catalog.json|firmware\/stable\/rc-limit-[\w-]+\.zip)$/.test(name)) { res.writeHead(404).end();return; }
     try {
-      res.setHeader('Content-Type', name.endsWith('.mjs') ? 'text/javascript' : name.endsWith('.json') ? 'application/json' : name.endsWith('.css') ? 'text/css' : 'text/html');
+      res.setHeader('Content-Type', name.endsWith('.zip') ? 'application/zip' : name.endsWith('.mjs') ? 'text/javascript' : name.endsWith('.json') ? 'application/json' : name.endsWith('.css') ? 'text/css' : 'text/html');
       res.end(await fs.readFile(path.join(webRoot, name)));
     } catch { res.writeHead(404).end(); }
   });
@@ -21,7 +21,7 @@ async function main() {
   let browser;
   try {
     browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
-    const page = await browser.newPage(); const errors = [];
+    const page = await browser.newPage();page.setDefaultTimeout(15000); const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(() => {
       window.updatePortRequests = 0;
@@ -33,6 +33,14 @@ async function main() {
     await page.locator('#firmware-update summary').click();
     await page.waitForFunction(() => !document.getElementById('update-check').disabled);
     await page.locator('#update-board').selectOption('esp32c3');
+    if (process.env.RC_LIMIT_EXPECT_STABLE === '1') {
+      await page.waitForFunction(() => document.getElementById('stable-firmware-status').textContent.includes('test-stable-fixture'));
+      await page.locator('#stable-firmware-use').click();
+      await page.waitForFunction(() => document.getElementById('update-status').textContent.includes('Verified esp32c3'));
+      const [stableDownload] = await Promise.all([page.waitForEvent('download'), page.locator('#stable-firmware-download').click()]);
+      assert.equal(stableDownload.suggestedFilename(), 'rc-limit-esp32c3.zip');
+      assert.equal(await page.locator('#update-flash').isDisabled(), true);
+    }
     await page.locator('#update-file').setInputFiles(path.join(root, 'build/releases/rc-limit-esp32c3.zip'));
     await page.locator('#update-check').click();
     await page.waitForFunction(() => document.getElementById('update-status').textContent.includes('Verified esp32c3'));
