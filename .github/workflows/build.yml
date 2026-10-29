@@ -117,6 +117,30 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  web:
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --ignore-scripts
+      - run: npm run build:web
+      - name: Verify and package README static download
+        run: python3 scripts/package-web.py --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-web
+          path: build/releases/rc-limit-web.zip
+          if-no-files-found: error
+          retention-days: 14
+
   desktop:
     needs: checks
     runs-on: ubuntu-24.04
@@ -129,17 +153,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run package
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Archive Linux desktop and browser app
+      - name: Archive Linux desktop
         run: |
           mkdir -p build/releases
           tar -czf build/releases/rc-limit-desktop-linux-x64.tar.gz -C build/desktop linux-unpacked
-          python3 -m zipfile -c build/releases/rc-limit-web.zip web
       - uses: actions/upload-artifact@v4
         with:
-          name: app-desktop-web
+          name: app-desktop-linux-x64
           path: build/releases/*
           if-no-files-found: error
           retention-days: 14
@@ -175,7 +195,7 @@ jobs:
 
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [checks, firmware, android, desktop, windows]
+    needs: [checks, firmware, android, web, desktop, windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

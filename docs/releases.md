@@ -11,7 +11,8 @@ Downloads are available under a successful run's **Artifacts** section (GitHub l
 | `firmware-esp32c3` | C3 Super Mini native USB + BLE firmware components |
 | `firmware-esp32c3-devkit` | C3 DevKitM-1 USB-UART + BLE firmware components |
 | `app-android` | Native Android **debug** APK for sideload testing |
-| `app-desktop-web` | Linux x64 Electron directory archive and browser web ZIP |
+| `app-desktop-linux-x64` | Linux x64 Electron directory archive |
+| `app-web` | Ready-to-serve static web ZIP, identical to the README download |
 | `app-windows-x64` | Windows x64 NSIS installer EXE and standalone portable EXE |
 
 Firmware ZIPs contain the exact source commit and inner `SHA256SUMS`. Original ESP32 bootloader is flashed at `0x1000`; C3 at `0x0`. Both use partitions at `0x8000`, application at `0x10000`. Follow the included README using all components. Pico uses BOOTSEL copy. Motor power must be disconnected. A successful build is not physical commissioning.
@@ -52,12 +53,10 @@ python3 scripts/package-firmware.py esp32c3
 
 Output: `build/releases/rc-limit-esp32c3.zip`. No device is opened by packaging. CI downloads pinned toolchains on its first run and caches PlatformIO packages by board and configuration hash.
 
-## GitHub Pages continuous deployment
+## Static web download
 
-`.github/workflows/pages.yml` validates and uploads only `web/`. Web-related changes on `main` deploy automatically; pull requests validate/upload a preview artifact without publishing. Manual runs on `main` deploy the current web UI. The deployment job uses the `github-pages` environment and limited `pages: write` / `id-token: write` permissions. No PAT or cloud service is needed.
+The README links directly to tracked `downloads/rc-limit-web.zip`. Extract the whole archive and follow its `README.txt` to serve `web/` on localhost using Python, or upload `web/` to a static HTTPS host. The archive includes the bundled firmware updater and third-party licenses. It needs neither Node.js nor a build step to use. GitHub Pages deployment and its permissions/environment are no longer configured by this project.
 
-One-time repository setup: open **Settings → Pages → Build and deployment → Source → GitHub Actions**. The connected GitHub app cannot access this repository's administration settings, so this setting must be enabled by a repository admin. Then run **Deploy web UI to GitHub Pages** from Actions on `main`, or merge a web change. See [GitHub's publishing-source instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
+The independent `web` CI job installs locked npm dependencies without lifecycle scripts, builds the updater, and verifies that the checked-in download matches every generated/static file. It uploads the same ZIP as `app-web`, independently of Linux Electron packaging. Versioned releases include it alongside other artifacts. Before committing web changes, run `npm ci --ignore-scripts` and `npm run package:web`, then commit the updated ZIP. `web/BUILD.json` inside the archive lists the asset SHA-256 values; comparison uses file contents to tolerate zlib compression differences between machines.
 
-Expected URL after a successful deployment: **https://shadowroot.github.io/rc-limit/**. The app uses relative module, stylesheet and board-data paths; browser integration checks serve it under `/rc-limit/` to exercise project-site hosting. HTTPS supplies a secure context; browser and OS support for Web Serial/Web Bluetooth and explicit device permission are still required. This is the static configuration app; board communication stays between the browser and the selected USB/Bluetooth device.
-
-Feature branches do not deploy production. Merge the Pages feature branch into `main` to activate its trigger. Firmware and Android/Electron build failures do not gate Pages; its own application checks must pass. The release workflow remains separate.
+The obsolete `Deploy web UI to GitHub Pages` workflow is deleted. If a site was already published, an administrator can unpublish it under repository Settings → Pages; removing a workflow alone does not unpublish a previously deployed site. The connected GitHub app cannot manage this repository's Pages settings.

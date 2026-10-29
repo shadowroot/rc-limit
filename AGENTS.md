@@ -63,7 +63,7 @@ For physical testing, have the exact board, receiver and ESC manuals; data-capab
 - `tests/`: limiter, protocol, deployment and optional UI integration tests.
 - `docs/`: build/deployment, wiring, protocol, commissioning and verification records.
 
-Keep generated artifacts in ignored `build/` directories and project-local firmware tools under ignored `.tools/`. Do not rely on temporary `/tmp` toolchain installations from a previous session. Use environment overrides documented in `docs/deploy.md` when needed.
+The intentional checked-in artifact `downloads/rc-limit-web.zip` is linked from the README. Regenerate it with `npm run package:web` whenever web assets or bundled dependencies change; CI checks its contents. Keep other generated artifacts in ignored `build/` directories and project-local firmware tools under ignored `.tools/`. Do not rely on temporary `/tmp` toolchain installations from a previous session. Use environment overrides documented in `docs/deploy.md` when needed.
 
 ## Build and deployment entry points
 
@@ -116,4 +116,4 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 
 `.github/workflows/build.yml` runs checks and all four PlatformIO builds, Android debug assembly, Linux Electron packaging and web archiving. `v*` tag pushes create draft releases only after all jobs succeed. Packages must contain board identity, source commit, checksums and flashing instructions; never publish an application-only ESP binary as a complete fresh-device image. No hardware is flashed by CI. See `docs/releases.md`.
 
-GitHub Pages CD is in `.github/workflows/pages.yml`. Publish only `web/`, deploy only main, and keep project-site relative paths working under `/rc-limit/`. PRs must not deploy production. Repository Pages source must be configured as GitHub Actions by an admin.
+GitHub Pages deployment is removed. The independent `web` CI job verifies the README static ZIP and uploads `app-web`. Keep relative asset paths working for localhost and arbitrary static hosting paths; preserve the `/rc-limit/` integration test.

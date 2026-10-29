@@ -32,7 +32,7 @@ python3 scripts/package-firmware.py esp32c3
 bash scripts/check.sh
 ```
 
-Only the updater requires the bundle; the configuration modules remain usable directly. `npm start` and `npm run package` build the bundle automatically. Release CI's Electron packaging hook prepares the bundle before archiving `web/`. When merging the GitHub Pages branch, its build step runs `npm run build:web --if-present` before uploading the site. No CDN script or cross-origin firmware fetch is needed. Third-party licenses are included under `web/dist/third-party-licenses.txt`.
+Only the updater requires the bundle; the configuration modules remain usable directly. `npm start` and `npm run package` build the bundle automatically. Electron's packaging hook prepares the desktop bundle; the independent web job creates the static ZIP. Static web CI builds and verifies the downloadable ZIP with `python3 scripts/package-web.py --check`; use `npm run package:web` to regenerate the README download. No CDN script or cross-origin firmware fetch is needed. Third-party licenses are included under `web/dist/third-party-licenses.txt`.
 
 The optional `tests/firmware-ui-smoke.cjs` needs Playwright/Chromium and real ZIPs in `build/releases/`. It validates loading under `/rc-limit/`, wrong-board rejection, power acknowledgement, simulated USB chooser cancellation/recovery and Pico download. Flash planning tests use mocked loaders; physical bootloader, flash verification, reset, reconnect and settings retention still require testing on each actual board. No hardware is flashed by the tests.
 
