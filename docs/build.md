@@ -26,6 +26,8 @@ arduino-cli lib install ArduinoJson@7.4.2
 
 arduino-cli compile --fqbn rp2040:rp2040:rpipico --output-dir build/pico firmware/rc_limiter
 arduino-cli compile --fqbn esp32:esp32:esp32 --output-dir build/esp32 firmware/rc_limiter
+arduino-cli compile --fqbn esp32:esp32:esp32c3:CDCOnBoot=cdc --output-dir build/esp32c3 firmware/rc_limiter
+arduino-cli compile --fqbn esp32:esp32:esp32c3:CDCOnBoot=default --output-dir build/esp32c3-devkit firmware/rc_limiter
 arduino-cli board list
 ```
 
@@ -43,9 +45,13 @@ For Arduino IDE, add the same board URLs to Preferences, install the pinned boar
 
 ## Browser and Electron
 
-Both firmware targets retain USB serial; original ESP32 additionally starts Bluetooth Classic SPP as `RC-Limiter`. No separate Bluetooth build or upload is needed. Web/Electron and native Android use the same mapping protocol over either transport. Pair the ESP32 through the operating system before selecting its SPP service. The standard Pico uses USB CDC; the original ESP32 DevKit USB connector uses an onboard USB-to-UART bridge.
+All firmware targets retain USB serial; original ESP32 additionally starts Bluetooth Classic SPP as `RC-Limiter`. C3 starts Nordic UART Service BLE as `RC-Limiter-C3`; use the C3 BLE button rather than the serial port picker. No separate wireless upload is needed. Web/Electron and native Android use the same mapping protocol over either transport. Pair the ESP32 through the operating system before selecting its SPP service. The standard Pico uses USB CDC; the original ESP32 DevKit USB connector uses an onboard USB-to-UART bridge.
 
 The web app is buildless. Serve `web/` on localhost as described in the README. Web Serial is permission gated; Chrome's [official serial guide](https://developer.chrome.com/docs/capabilities/serial) covers browser requirements. Bluetooth SPP availability is OS/browser dependent.
+
+C3 BLE uses Web Bluetooth, which needs a secure context and an explicit click on the BLE connection button. Chrome on Linux may require its experimental web platform features flag; browser/OS radio support varies. See [Chrome's Web Bluetooth platform guidance](https://developer.chrome.com/docs/capabilities/bluetooth). The native Android app provides a separate GATT client when the browser path is unavailable. USB does not require Web Bluetooth support.
+
+The Electron shell enables Chromium's experimental web platform switch on Linux to expose Web Bluetooth. The renderer sandbox, explicit device chooser and local-page permission checks remain enabled. A working Bluetooth adapter/OS stack is still required; exposing the API alone does not verify a physical GATT connection.
 
 For Electron, use Node **22.12+**, npm and an OS supported by Electron 43:
 
@@ -59,7 +65,7 @@ npm run package
 
 ## Native Android
 
-The project uses native Java views, Android's Bluetooth RFCOMM API, and [usb-serial-for-android 3.9.0](https://github.com/mik3y/usb-serial-for-android/tree/3.9.0). There is no WebView or Electron dependency in the APK. Native source is `android/app/src/main/java/dev/rclimit/MainActivity.java`.
+The project uses native Java views, Android's Bluetooth RFCOMM and BLE GATT APIs, and [usb-serial-for-android 3.9.0](https://github.com/mik3y/usb-serial-for-android/tree/3.9.0). There is no WebView or Electron dependency in the APK. Native source is `android/app/src/main/java/dev/rclimit/MainActivity.java`.
 
 Install Android Studio with SDK Platform 35 and Build Tools 35.0.0. Open the `android/` folder and use a Gradle JDK of **17 or 21**. The wrapper uses Gradle 8.9 and Android Gradle Plugin 8.7.3. The first sync requires access to Google Maven, Maven Central, Gradle's distribution service and JitPack.
 
@@ -71,12 +77,18 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Use `gradlew.bat` on Windows. Set the SDK location in Android Studio or untracked `local.properties` (`sdk.dir=/your/sdk/path`), or supply `ANDROID_HOME`.
 
-The debug APK is for local testing and is debug signed. Release distribution requires your own signing configuration and physical testing. Minimum Android is API 26 (Android 8), target/compile API 35. USB OTG host hardware and a data cable are required for USB. Bluetooth works only with a Classic-SPP-capable ESP32 and a phone that supports Classic Bluetooth.
+The debug APK is for local testing and is debug signed. Release distribution requires your own signing configuration and physical testing. Minimum Android is API 26 (Android 8), target/compile API 35. USB OTG host hardware and a data cable are required for USB. Classic SPP works with the original ESP32; BLE UART works with ESP32-C3 on a BLE-capable phone.
 
-Pair in Android system settings before connecting. Android 12+ requests `BLUETOOTH_CONNECT` through Nearby devices. The app lists bonded devices rather than scanning and requests no location or Internet permission. See [Android's permission documentation](https://developer.android.com/develop/connectivity/bluetooth/bt-permissions).
+Pair Classic devices in Android settings first. BLE scans directly for the UART service. Android 12+ requests Nearby devices (`BLUETOOTH_CONNECT` and `BLUETOOTH_SCAN` for BLE). Android 8–11 BLE scanning requires Location permission and system Location enabled. The app requests no Internet permission. See [Android's permission documentation](https://developer.android.com/develop/connectivity/bluetooth/bt-permissions).
 
 ## Tests
 
 `bash scripts/check.sh` needs g++ and Node. It compiles the real portable mapping/arming code and exercises all pulse inputs across both modes, both mapping styles, both directions and percentage limits. JavaScript tests cover validation, fragmented serial replies, concurrent disarm/telemetry IDs, errors, timeouts and disconnects. It also syntax checks the browser and Electron scripts.
 
 No firmware is flashed automatically by these build/test commands. See [validation.md](validation.md) for the checks actually performed in this workspace and [commissioning.md](commissioning.md) for hardware tests.
+
+## C3-specific build settings
+
+Use `esp32c3` for the Super Mini's native USB connector (`CDCOnBoot=cdc`), and `esp32c3-devkit` for the official DevKitM-1 onboard USB-to-UART connector (`CDCOnBoot=default`). In Arduino IDE choose ESP32C3 Dev Module and match the USB CDC On Boot option to the connector. If a Super Mini needs recovery, hold BOOT, press/release RESET, release BOOT and retry the upload on the enumerated port. Native USB may reconnect under a different device name; explicitly select that port. No external programmer GPIO pins are used by the scripts.
+
+C3 uses 14-bit LEDC at 50 Hz, roughly 1.22 µs duty quantization; original ESP32 retains 16-bit LEDC, and Pico uses 1 µs PWM ticks. All C3 mapping pins, layouts and resistor guidance are in [board-layouts.md](board-layouts.md). C3 is BLE-only for wireless control; no Classic SPP library is compiled into that target.

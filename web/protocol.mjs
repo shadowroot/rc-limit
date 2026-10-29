@@ -41,6 +41,7 @@ export function validateMappings(mappings, board) {
   if (!Array.isArray(mappings) || mappings.length < 1 || mappings.length > maxMappings) throw new Error('Use 1–4 pin mappings.');
   const espOutputs = [18, 19, 21, 22, 23, 25, 26, 27, 32, 33];
   const allowed = (pin, output) => board === 'pico' ? (pin >= 0 && pin <= 22) || (pin >= 26 && pin <= 28)
+    : board === 'esp32c3' ? [0, 1, 3, 4, 5, 6, 7, 10].includes(pin)
     : board === 'esp32' ? espOutputs.includes(pin) || (!output && [34, 35, 36, 39].includes(pin)) : true;
   mappings.forEach((config, index) => {
     validate(config);
@@ -61,7 +62,7 @@ export function profile(value, board) {
   return { version: 2, mappings: validateMappings([validate(value)], board) };
 }
 export function nextMapping(mappings, board) {
-  const pairs = board === 'esp32' ? [[27, 25], [26, 33], [32, 18], [19, 21]] : [[4, 5], [6, 7], [8, 9], [10, 11]];
+  const pairs = board === 'esp32c3' ? [[3, 4], [5, 6], [0, 1], [7, 10]] : board === 'esp32' ? [[27, 25], [26, 33], [32, 18], [19, 21]] : [[4, 5], [6, 7], [8, 9], [10, 11]];
   for (const [input_pin, output_pin] of pairs) {
     const candidate = { ...defaults, input_pin, output_pin };
     try { validateMappings([...mappings, candidate], board); return candidate; } catch { /* Try the next unused pair. */ }

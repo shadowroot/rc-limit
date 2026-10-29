@@ -26,3 +26,11 @@ Calibrate full ESC endpoints according to its manual before relying on a limit. 
 - On Pico, confirm USB CDC can read/apply/save all mappings. On the original ESP32, repeat the same operations over USB-to-UART serial and over Bluetooth Classic SPP after OS pairing with RC-Limiter. Check the GUI's Bluetooth capability status. These transports should produce equivalent results, using one controller at a time.
 
 This project does not detect actual speed, current, temperature, or a power-stage failure. If you need a maximum vehicle speed, use speed feedback and an appropriate controller; do not interpret a pulse percentage as a guaranteed speed. Record your measured pulse/voltage results and retest after wiring or firmware changes.
+
+## C3, board layouts and resistor-divider checks
+
+- Confirm the actual PCB matches the chosen [board layout](board-layouts.md), particularly a Super Mini clone's orientation, LED/BOOT pins and USB wiring. Check each suggested GPIO against the printed labels. Keep C3 straps 2/8/9, native USB 18/19 and UART 20/21 free.
+- For a confirmed 5 V receiver high, measure the divider junction using 4.7 kΩ series and 6.8 kΩ to common ground: expect about 2.96 V nominal. Test min/max source voltage and power sequencing. Do not use the divider on a 3.3 V signal without checking thresholds; it falls to about 1.95 V. Measure actual edges with the cable and attached input.
+- On C3, check all four PWM outputs with BLE traffic active and after USB reconnect. C3 LEDC uses 14-bit duty resolution at 50 Hz (about 1.22 µs quantization). Verify pulse jitter, neutral and stop-all behavior on the physical board.
+- Build Super Mini with native CDC enabled and DevKitM-1 with the UART connector target. Verify the intended USB connector can read/apply/save settings and recover from unplug/replug.
+- Connect BLE using the dedicated C3 BLE chooser; verify discovery, RX writes and TX notification subscription, four-channel fragmented replies, apply/save, long commands, reconnects, link loss, congestion and overflow/timeout recovery. Reconnect after a quarantined/overflowed BLE session. Repeat on a real Android phone, including permission denial and backgrounding.

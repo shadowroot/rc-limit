@@ -9,14 +9,16 @@ Usage (run from any directory):
   scripts/deploy.sh pico --port /dev/ttyACM0
   scripts/deploy.sh pico --mount /media/USER/RPI-RP2
   scripts/deploy.sh esp32 --port /dev/ttyUSB0
-  scripts/deploy.sh pico|esp32 --build-only
+  scripts/deploy.sh esp32c3 --port /dev/ttyACM0
+  scripts/deploy.sh esp32c3-devkit --port /dev/ttyUSB0
+  scripts/deploy.sh pico|esp32|esp32c3|esp32c3-devkit --build-only
   scripts/deploy.sh android --serial DEVICE_ID [--launch] [--apk FILE]
   scripts/deploy.sh android --build-only
   scripts/deploy.sh web [--port 8080]
   scripts/deploy.sh desktop [--install] [--package]
 
 Add --dry-run anywhere to print commands without building, flashing or installing.
-Firmware setup: scripts/setup-firmware.sh [pico|esp32|all]
+Firmware setup: scripts/setup-firmware.sh [pico|esp32|esp32c3|all]
 Disconnect motor power before flashing. Board/device selection is always explicit.
 See docs/deploy.md for prerequisites and environment overrides.
 HELP
@@ -30,7 +32,7 @@ case "$action" in
     [[ $# == 0 ]] || rc_die 'ports takes no options.'
     rc_firmware_ready; rc_arduino board list
     ;;
-  pico|esp32)
+  pico|esp32|esp32c3|esp32c3-devkit)
     port=; mount=; build_only=0
     while [[ $# -gt 0 ]]; do
       case "$1" in
@@ -54,7 +56,12 @@ case "$action" in
       tr -d '\r' < "$mount/INFO_UF2.TXT" | grep -qx 'Board-ID: RPI-RP2' || rc_die 'BOOTSEL volume does not identify an RP2040 board.'
     fi
     rc_firmware_ready
-    if [[ "$action" == pico ]]; then fqbn=rp2040:rp2040:rpipico; else fqbn=esp32:esp32:esp32; fi
+    case "$action" in
+      pico) fqbn=rp2040:rp2040:rpipico ;;
+      esp32) fqbn=esp32:esp32:esp32 ;;
+      esp32c3) fqbn=esp32:esp32:esp32c3:CDCOnBoot=cdc ;;
+      esp32c3-devkit) fqbn=esp32:esp32:esp32c3:CDCOnBoot=default ;;
+    esac
     output="$RC_ROOT/build/$action"
     rc_run mkdir -p "$output"
     rc_arduino compile --fqbn "$fqbn" --build-path "$RC_ROOT/build/work-$action" --output-dir "$output" "$RC_ROOT/firmware/rc_limiter"

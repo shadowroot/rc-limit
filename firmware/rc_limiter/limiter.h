@@ -79,13 +79,14 @@ class Limiter {
   uint32_t since = 0;
 };
 constexpr int MAX_MAPPINGS=4;
-enum class Board { Pico, Esp32 };
+enum class Board { Pico, Esp32, Esp32C3 };
 struct MappingSet {
   int count=1;
   Config channels[MAX_MAPPINGS];
 };
 inline bool allowedPin(Board board,int pin,bool output) {
   if(board==Board::Pico) return (pin>=0 && pin<=22) || (pin>=26 && pin<=28);
+  if(board==Board::Esp32C3) return pin==0 || pin==1 || (pin>=3 && pin<=7) || pin==10;
   switch(pin) {
     case 18: case 19: case 21: case 22: case 23: case 25:
     case 26: case 27: case 32: case 33: return true;

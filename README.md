@@ -1,6 +1,6 @@
 # RC Limit
 
-A receiver-to-ESC PWM limiter for **Raspberry Pi Pico (RP2040)** and **original ESP32 DevKit / ESP32-WROOM-32**. Configure **one to four pin mappings**, each taking a receiver PWM input and producing a constrained 50 Hz ESC signal. Bidirectional mode is the default.
+A receiver-to-ESC PWM limiter for **Raspberry Pi Pico (RP2040)** and **original ESP32 DevKit / ESP32-WROOM-32**, and **ESP32-C3 Super Mini / DevKitM-1**. Configure **one to four pin mappings**, each taking a receiver PWM input and producing a constrained 50 Hz ESC signal. Bidirectional mode is the default.
 
 Configure it with the local **web app**, the **Electron desktop app**, or the **native Android app** (Java, native views, no WebView). Configuration includes receiver and ESC GPIOs, calibrated pulse endpoints and neutral, independent forward/reverse limits, clamp/scaled mapping, direction inversion, deadband, and receiver timeout. Profiles are interchangeable JSON files.
 
@@ -23,12 +23,12 @@ Use **+ Add mapping** in the web/Electron GUI or **+ Mapping** in Android. Selec
 
 Suggested conflict-free pairs (GPIO numbers):
 
-| Mapping | Pico input → output | ESP32 input → output |
-|---|---|---|
-| 1 | GP4 → GP5 | GPIO27 → GPIO25 |
-| 2 | GP6 → GP7 | GPIO26 → GPIO33 |
-| 3 | GP8 → GP9 | GPIO32 → GPIO18 |
-| 4 | GP10 → GP11 | GPIO19 → GPIO21 |
+| Mapping | Pico input → output | ESP32 input → output | C3 input → output |
+|---|---|---|---|
+| 1 | GP4 → GP5 | GPIO27 → GPIO25 | GPIO3 → GPIO4 |
+| 2 | GP6 → GP7 | GPIO26 → GPIO33 | GPIO5 → GPIO6 |
+| 3 | GP8 → GP9 | GPIO32 → GPIO18 | GPIO0 → GPIO1 |
+| 4 | GP10 → GP11 | GPIO19 → GPIO21 | GPIO7 → GPIO10 |
 
 These are suggestions, not fixed assignments. A single receiver GPIO may feed multiple output mappings with different limits. Outputs must be unique and cannot also serve as receiver inputs. Pico outputs 16 GPIOs apart cannot be used independently because they alias one hardware PWM channel. The apps and firmware validate these conflicts.
 
@@ -38,9 +38,28 @@ Profiles now export as `{"version":2,"mappings":[...]}`. Old single-channel prof
 
 ## USB and Bluetooth serial
 
-USB serial remains available at **115200 baud on both boards**: Pico uses native USB CDC, while the original ESP32 DevKit uses its onboard USB-to-UART bridge. ESP32 **Bluetooth Classic SPP starts automatically** alongside USB as **RC-Limiter**. Both transports accept exactly the same mapping, limits, save, telemetry and arm/disarm commands. Pair with the OS first for Bluetooth; then select its serial service in the web/Electron chooser or tap Bluetooth in Android. The GUI reports USB availability and the actual Bluetooth startup result reported by the firmware.
+USB serial is available on every target. Pico and the C3 Super Mini use native USB CDC; the original ESP32 DevKit and C3 DevKitM-1 use their USB-to-UART bridges. Use 115200 baud for UART bridges. Native CDC clients assert DTR for recognized Pico/Espressif USB interfaces.
 
-The standard Pico has no onboard Bluetooth, and this firmware does not add a Bluetooth stack for Pico W. Pico configuration uses USB serial. BLE-only ESP32 variants require different firmware and are not covered by this Classic-SPP target. Use one controller at a time; simultaneous USB and Bluetooth clients can change the same board state.
+- **Original ESP32:** Bluetooth Classic SPP starts as **RC-Limiter** alongside USB. Pair with the OS, then use the USB / Classic serial chooser, or Android's Bluetooth button.
+- **ESP32-C3:** BLE UART starts as **RC-Limiter-C3** alongside USB. Use **Connect C3 BLE serial** in web/Electron or **BLE C3** in Android. No prior OS pairing is required. It uses the Nordic UART Service (GATT), not a virtual COM port.
+- **Pico:** USB only; no onboard Bluetooth on a standard Pico, and no Pico W Bluetooth stack is implemented here.
+
+The same JSON commands, four mappings and arming rules work over each transport. Use one controller at a time. Bluetooth transports have no application authentication in this prototype; use a controlled bench environment. A link loss does not guarantee delivery of disarm.
+
+## Board layouts and 5 V receiver signals
+
+Expand **Board layouts, suggested pins & 5 V input resistors** under Pin mapping. Choose Pico, official ESP32-DevKitC V4, C3 Super Mini or C3 DevKitM-1. The diagrams show header positions, selected GPIOs, reserved pins and suggested pin-pair buttons. The native Android app has the same reference data in its board-guide dialog. Clone layouts vary: match printed GPIO labels and the USB orientation.
+
+All these GPIOs use **3.3 V logic**. For a confirmed 5 V receiver PWM signal, use **4.7 kΩ in series and 6.8 kΩ from the GPIO junction to ground**, both 1%, giving about **2.96 V** at a 5 V high. An already 3.3 V signal would fall to about 1.95 V and may not register. Prefer the powered-down-tolerant input buffer when power sequencing varies. See [board layouts](docs/board-layouts.md) and [wiring circuits](docs/wiring.md).
+
+C3 build/flash examples:
+
+```sh
+./scripts/setup-firmware.sh esp32c3
+./scripts/deploy.sh esp32c3 --port /dev/ttyACM0
+# Official C3 DevKitM-1 onboard USB-to-UART connector:
+./scripts/deploy.sh esp32c3-devkit --port /dev/ttyUSB0
+```
 
 ## Web app
 
@@ -51,7 +70,7 @@ cd rc-limit
 python3 -m http.server 8080 --bind 127.0.0.1 --directory web
 ```
 
-Open **http://localhost:8080** in desktop Chrome or Edge. Choose **Connect serial / Bluetooth**, then your board. USB works with both boards. Pair `RC-Limiter` with the operating system first for ESP32 Bluetooth Classic SPP; the port picker must expose that serial service. Support depends on the browser/OS. Use Electron or Android when it does not. Web Bluetooth BLE is a different protocol.
+Open **http://localhost:8080** in desktop Chrome or Edge. Choose **Connect USB / Classic serial**, then your board. USB works on all targets. Pair `RC-Limiter` with the operating system first for ESP32 Bluetooth Classic SPP; the port picker must expose that serial service. Support depends on the browser/OS. Use Electron or Android when it does not. Use the separate **Connect C3 BLE serial** button for the C3 GATT UART service; browser/OS Web Bluetooth availability varies.
 
 The browser requires a secure context (localhost or HTTPS) and user selection of the device. There is no cloud service and no Wi-Fi access point on the firmware. Chrome on Android does not provide this desktop Web Serial workflow; use the native app.
 
@@ -66,14 +85,15 @@ npm start
 npm run package
 ```
 
-The same web UI runs inside Electron with a device chooser. Node integration is disabled in the renderer. Choose a specific USB or paired Bluetooth serial port; no device is selected automatically. Build outputs go under `build/desktop/`.
+The same web UI runs inside Electron with a device chooser. Node integration is disabled in the renderer. Choose a specific USB/Classic serial port or C3 BLE device; no device is selected automatically. Build outputs go under `build/desktop/`.
 
 ## Native Android
 
 Open `android/` in Android Studio, allow Gradle sync, and run the app on an Android 8+ phone/tablet. Or use `cd android && ./gradlew assembleDebug` with Android SDK 35 installed. See [build instructions](docs/build.md).
 
 - **USB OTG:** connect a data cable/OTG adapter, tap USB OTG, select the board and grant USB permission. Pico uses CDC ACM; ESP32 commonly uses CP210x, CH340, or FTDI USB UART. Supported by usb-serial-for-android.
-- **Bluetooth:** pair `RC-Limiter` in Android settings, tap Bluetooth, grant Nearby devices permission on Android 12+, and choose the paired ESP32. It uses RFCOMM/SPP, not BLE. No location permission or device scan is needed.
+- **Bluetooth:** pair `RC-Limiter` in Android settings, tap Bluetooth, grant Nearby devices permission on Android 12+, and choose the paired ESP32. It uses RFCOMM/SPP; no scan or location permission is needed for this path.
+- **BLE C3:** tap BLE C3, grant Bluetooth scan/connect permissions on Android 12+, and choose the advertising RC-Limiter-C3 UART device. Android 8–11 requires Location permission and system Location enabled for BLE scanning. USB remains available if wireless permission is denied.
 - Read board → edit → **DISARM** → Apply RAM → Save flash. Hold the receiver at neutral for one second before **ARM**. Input/output pulses and signal status update live.
 - Import/export profiles through the system document picker. Going to the background or leaving the app requests disarm and disconnects; delivery is not guaranteed if the connection fails. Reconnect explicitly after returning.
 
@@ -83,9 +103,9 @@ Power-up, reset and receiver loss leave the board **disarmed**. Each output keep
 
 Configuration edits and flash writes are rejected while armed. Applying settings restarts receiver acquisition and neutral dwell. Flash saves include a schema marker and checksum; invalid saved data falls back to defaults. The protocol is shared by USB and Bluetooth; use **one controller at a time**. The firmware does not arbitrate exclusive control between clients.
 
-ESP32 Classic Bluetooth is enabled for local configuration, without application authentication. Treat anyone who can connect as able to read/edit settings or arm/disarm. This prototype should be configured in a controlled bench environment.
+ESP32 Classic and C3 BLE are enabled for local configuration, without application authentication. Treat anyone who can connect as able to read/edit settings or arm/disarm. This prototype should be configured in a controlled bench environment.
 
-Pico/Pico W uses USB only in this implementation. ESP32-S2/S3/C3/C6 and Pico 2 are not supported targets here. Only conventional individual-channel RC PWM is supported; no SBUS, iBUS, PPM sum, DShot, or OneShot.
+Pico/Pico W uses USB only in this implementation. ESP32-S2/S3/C6 and Pico 2 are not supported targets here. Only conventional individual-channel RC PWM is supported; no SBUS, iBUS, PPM sum, DShot, or OneShot.
 
 ## Development
 

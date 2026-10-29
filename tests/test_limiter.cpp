@@ -82,6 +82,14 @@ int main() {
   c=rc::Config{}; c.timeout_ms=0; assert(!rc::valid(c));
   rc::MappingSet set;
   assert(rc::validMappings(set,rc::Board::Pico));
+  rc::MappingSet c3;
+  c3.count=4;
+  const int c3inputs[]={3,5,0,7},c3outputs[]={4,6,1,10};
+  for(int i=0;i<4;i++) {c3.channels[i].input_pin=c3inputs[i];c3.channels[i].output_pin=c3outputs[i];}
+  assert(rc::validMappings(c3,rc::Board::Esp32C3));
+  for(int pin: {2,8,9,18,19,20,21,25,27,34}) {
+    c3.channels[0].input_pin=pin;assert(!rc::validMappings(c3,rc::Board::Esp32C3));
+  }
   set.count=2; set.channels[1].input_pin=6; set.channels[1].output_pin=7;
   assert(rc::validMappings(set,rc::Board::Pico));
   set.channels[1].input_pin=4; // One input can control multiple separately limited outputs.

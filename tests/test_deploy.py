@@ -40,10 +40,20 @@ if 'get-state' in sys.argv:
         return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
 
     def test_requires_explicit_board_or_phone(self):
-        for target in ["pico", "esp32", "android"]:
+        for target in ["pico", "esp32", "esp32c3", "esp32c3-devkit", "android"]:
             result = self.run_script(target)
             self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.calls(), [])
+
+    def test_c3_targets_keep_native_usb_and_uart_board_options_distinct(self):
+        for target, fqbn in [("esp32c3", "esp32:esp32:esp32c3:CDCOnBoot=cdc"),
+                             ("esp32c3-devkit", "esp32:esp32:esp32c3:CDCOnBoot=default")]:
+            self.log.unlink(missing_ok=True)
+            result = self.run_script(target, "--port", "/dev/test-c3")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            compile_call, upload_call = self.calls()
+            self.assertIn(fqbn, compile_call)
+            self.assertIn(fqbn, upload_call)
 
     def test_flash_builds_then_uploads_to_exact_port(self):
         result = self.run_script("esp32", "--port", "/dev/serial/by-id/board with spaces")

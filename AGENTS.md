@@ -8,7 +8,8 @@ These instructions apply to this project and its subdirectories. Preserve the or
 - Support **bidirectional ESCs**, with configurable limits in both directions.
 - Make the receiver input pin, ESC output pin, pulse calibration and limits configurable.
 - Support multiple receiver-to-ESC pin mappings, with independent calibration and limits. The current maximum is four mappings; one input may fan out to several unique outputs.
-- Provide USB serial configuration on Pico and ESP32, plus Bluetooth configuration on ESP32.
+- Provide USB serial configuration on Pico and ESP32, plus Bluetooth configuration on ESP32. Support C3 Super Mini and C3 DevKit boards with USB and BLE serial (the user accepted BLE instead of Classic for C3).
+- Provide board layouts and suggested pins for Pico, original ESP32 DevKit, C3 Super Mini and C3 DevKitM-1, and resistor/buffer guidance for non-5-V-tolerant GPIOs.
 - Provide a **web configuration GUI that can run in Electron**.
 - Provide a **separate native Android implementation** with USB serial and Bluetooth support. Keep it native; the requested Android implementation is not a WebView wrapper.
 - Document how to connect a receiver to the limiter and the limiter to an ESC, including handling a receiver signal that actually reaches 5 V, signal level conversion, common ground and power connections.
@@ -21,9 +22,9 @@ The initial Python desktop GUI was replaced by the web/Electron and native Andro
 These are implementation choices, not additional original user requirements. Document changes to them explicitly.
 
 - One to four conventional RC PWM input-to-output mappings, with 50 Hz ESC outputs. Bus protocols such as SBUS, iBUS and DShot are outside the current implementation.
-- Firmware targets: standard RP2040 Pico and original ESP32 DevKit / ESP32-WROOM-32. Other ESP32 variants and Pico 2 need explicit implementation and validation.
-- ESP32 Bluetooth uses Classic SPP/RFCOMM. It is not BLE. Pico uses USB serial in this project.
-- Default GPIO mapping: Pico GP4 input → GP5 output; ESP32 GPIO27 input → GPIO25 output. GPIO numbers are not physical header positions.
+- Firmware targets: RP2040 Pico, original ESP32 DevKit / WROOM-32, C3 Super Mini (native USB CDC) and official C3 DevKitM-1 (USB-to-UART). Other variants and Pico 2 need explicit implementation and validation.
+- Original ESP32 uses Classic SPP/RFCOMM as RC-Limiter. C3 uses Nordic UART Service BLE GATT as RC-Limiter-C3. Pico uses USB only. Keep Classic and BLE chooser paths distinct, serialize/chunk BLE writes and assemble notification fragments before parsing JSON.
+- Default GPIO mapping: Pico GP4 input → GP5 output; ESP32 GPIO27 input → GPIO25 output; C3 GPIO3 input → GPIO4 output. GPIO numbers are not physical header positions.
 - Bidirectional pulse defaults: 1000 / 1500 neutral / 2000 µs, with 30% forward and reverse limits. Confirm the actual ESC neutral before motor operation.
 - Both apps share the firmware's version 2 newline-delimited JSON protocol and profiles containing a `mappings` array of 15-field channel configurations. Import legacy single-channel profiles and saved configurations; preserve compatibility or document a coordinated migration.
 - The limiter constrains the ESC command. It does not measure or guarantee motor speed, current, torque or power.
@@ -44,13 +45,13 @@ Install only the tools needed for the work being done. Use the pinned versions i
 
 The Android application supports API 26+ and currently targets/compiles API 35. Firmware setup and first npm/Gradle builds require network access. Android dependencies resolve through Google Maven, Maven Central and JitPack.
 
-For physical testing, have the exact board, receiver and ESC manuals; data-capable USB cables; a USB OTG adapter for Android USB; appropriate signal conversion and regulated supplies; and an oscilloscope to verify signal voltage and pulse timing. ESP32 Bluetooth requires a Classic-SPP-capable board and OS pairing. USB deployment requires device access; Android installation requires USB debugging authorization.
+For physical testing, have the exact board, receiver and ESC manuals; data-capable USB cables; a USB OTG adapter for Android USB; appropriate signal conversion and regulated supplies; and an oscilloscope to verify signal voltage and pulse timing. Original ESP32 Classic requires OS pairing; C3 BLE requires service discovery and notifications. BLE scan permissions differ between Android 8–11 and Android 12+. USB deployment requires device access; Android installation requires USB debugging authorization.
 
 ## Source layout
 
 - `firmware/rc_limiter/limiter.h`: portable mapping and arming/failsafe logic.
 - `firmware/rc_limiter/rc_limiter.ino`: hardware capture/output, persistence and serial/Bluetooth commands.
-- `web/`: shared browser/Electron GUI and JavaScript protocol client.
+- `web/`: shared browser/Electron GUI, BLE transport and protocol client. `web/hardware/boards.json` is shared with Android assets; keep pin layouts and guidance consistent.
 - `electron/`: sandboxed desktop shell, preload bridge and device chooser.
 - `android/`: native Java Android app, USB serial and Bluetooth transports.
 - `scripts/`: checks, isolated firmware setup and deployment entry points.
@@ -68,6 +69,8 @@ bash scripts/check.sh
 ./scripts/setup-firmware.sh all
 ./scripts/deploy.sh pico --build-only
 ./scripts/deploy.sh esp32 --build-only
+./scripts/deploy.sh esp32c3 --build-only
+./scripts/deploy.sh esp32c3-devkit --build-only
 ./scripts/deploy.sh android --build-only
 ./scripts/deploy.sh desktop --package
 ./scripts/deploy.sh web
@@ -86,6 +89,7 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 - An app disconnect is not an independent firmware failsafe trigger. Do not promise that a dropped USB/Bluetooth connection stops an armed board.
 - Receiver RF loss can leave valid pulses present. Document and test the receiver's own failsafe; pulse validity alone does not establish a healthy radio link.
 - Hardware PWM can retain its last command during a stalled main loop until watchdog recovery. Do not describe the normal receiver timeout as a guaranteed bound for every fault.
+- C3 RC pins are only 0, 1, 3, 4, 5, 6, 7, 10; exclude straps 2/8/9, native USB 18/19 and UART 20/21. C3 uses 14-bit LEDC, original ESP32 16-bit. Keep GPIO4–7 free when external JTAG is needed.
 - Treat GPIOs as 3.3 V interfaces. Distinguish receiver supply voltage from measured signal-high voltage, and preserve the level-conversion/power-sequencing guidance in `docs/wiring.md`.
 
 ## Validation and documentation

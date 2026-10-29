@@ -1,4 +1,6 @@
 import { fields, defaults, validate, validateMappings, profile, nextMapping, Protocol } from './protocol.mjs';
+import { openBle } from './ble.mjs';
+import { loadBoardProfiles, drawBoard, boardForFirmware } from './boards.mjs';
 const $ = id => document.getElementById(id);
 const controls = {};
 const selects = { bidirectional: ['Forward only', 'Bidirectional'], scale: ['Clamp at limit', 'Scale full stick travel'], invert: ['Normal', 'Inverted'] };
@@ -10,7 +12,10 @@ for (const [key, label, group] of fields) {
   input.name = key; input.id = key;
   wrapper.append(input); document.querySelector(`[data-group="${group}"]`).append(wrapper); controls[key] = input;
 }
-function fill(config) { for (const [key, value] of Object.entries(config)) if (controls[key]) controls[key].value = value; }
+function fill(config) {
+  for (const [key, value] of Object.entries(config)) if (controls[key]) controls[key].value = value;
+  queueMicrotask(renderBoardGuide);
+}
 function form() {
   const config = {};
   for (const [key, input] of Object.entries(controls)) {
@@ -37,16 +42,46 @@ function currentProfile() {
   stashMapping(); return { version: 2, mappings: validateMappings(draftMappings, boardName) };
 }
 renderMappings();
-let port, reader, writer, protocol, polling, readTask, connecting = false, closing = false;
+let port, reader, writer, protocol, polling, readTask, bleLink, connecting = false, closing = false;
+let boardProfiles = [], selectedBoard;
+function renderBoardGuide() {
+  const board = boardProfiles.find(p => p.id === $('board-layout').value); if (!board) return;
+  selectedBoard = board;
+  $('board-notes').textContent = board.notes;
+  $('board-source').href = board.source;
+  drawBoard(board, $('board-drawing'), Number(controls.input_pin.value), Number(controls.output_pin.value));
+  const suggestions = $('pin-suggestions'); suggestions.replaceChildren();
+  board.pairs.forEach(([input, output], i) => {
+    const button = document.createElement('button'); button.type = 'button';
+    button.textContent = `${i + 1}: GPIO${input} → GPIO${output}`;
+    button.disabled = !!latestData?.armed || (!!boardName && !!protocol && board.firmware !== boardName);
+    button.onclick = () => {
+      controls.input_pin.value = input; controls.output_pin.value = output; renderBoardGuide();
+      message('Suggested GPIOs filled into the selected draft mapping. Check all mapping conflicts, then Apply all.');
+    }; suggestions.append(button);
+  });
+}
+loadBoardProfiles().then(profiles => {
+  boardProfiles = profiles;
+  $('board-layout').replaceChildren(...profiles.map(p => new Option(p.name, p.id)));
+  const board = latestData ? boardForFirmware(latestData.board, latestData.transports?.usb_interface) : profiles[0];
+  $('board-layout').value = board.id; renderBoardGuide();
+}).catch(error => { $('board-notes').textContent = error.message; });
+$('board-layout').onchange = renderBoardGuide;
+for (const key of ['input_pin', 'output_pin']) controls[key].addEventListener('input', renderBoardGuide);
 function message(text) { $('message').textContent = text; }
 function deviceButtons(connected) {
   document.querySelectorAll('[data-device]').forEach(b => b.disabled = !connected);
   $('connect').disabled = connected || connecting; $('disconnect').disabled = !connected;
+  $('connect-ble').disabled = connected || connecting;
 }
 deviceButtons(false);
 function status(data) {
+  const previousBoard = boardName;
   latestData = data; boardName = data.board; protocolVersion = data.protocol_version || 1;
-  $('board').textContent = `${data.board === 'esp32' ? 'ESP32 · USB / Bluetooth SPP' : 'Raspberry Pi Pico · USB serial'}`;
+  $('board').textContent = data.board === 'esp32c3' ? 'ESP32-C3 · USB / BLE serial' : data.board === 'esp32' ? 'ESP32 · USB / Bluetooth SPP' : 'Raspberry Pi Pico · USB serial';
+  if (boardProfiles.length && previousBoard !== boardName) $('board-layout').value = boardForFirmware(data.board, data.transports?.usb_interface).id;
+  renderBoardGuide();
   $('armed').textContent = data.armed ? 'ARMED' : 'DISARMED';
   $('signal').textContent = data.signal_ok ? 'Receiver signal valid' : 'Receiver lost / invalid';
   const state = data.channel_states ? data.channel_states[selectedMapping] : selectedMapping === 0 ? data : undefined;
@@ -59,7 +94,7 @@ function status(data) {
   $('arm').disabled = !!data.armed || !data.signal_ok;
   $('add-mapping').disabled = draftMappings.length >= 4 || !!data.armed;
   $('remove-mapping').disabled = draftMappings.length <= 1 || !!data.armed;
-  $('transports').textContent = data.transports ? `USB serial: enabled · Bluetooth serial: ${data.transports.bluetooth_serial ? `${data.transports.bluetooth_name} (enabled)` : 'unavailable'}`
+  $('transports').textContent = data.transports ? `USB serial: enabled · Bluetooth serial: ${data.transports.bluetooth_serial ? `${data.transports.bluetooth_name} (enabled${data.transports.bluetooth_type === 'ble' ? ', BLE' : ''})` : 'unavailable'}`
     : data.board === 'esp32' ? 'USB serial + Bluetooth SPP: RC-Limiter' : 'USB serial enabled · no onboard Bluetooth';
   const summary = $('mapping-summary'); summary.replaceChildren();
   (data.mappings || [data.config]).forEach((c, i) => {
@@ -68,9 +103,18 @@ function status(data) {
     row.textContent = `Live ${i + 1}: GPIO${c.input_pin} → GPIO${c.output_pin} · ${s.input_us} → ${s.output_us} µs · ${s.signal_ok ? 'signal OK' : 'signal lost'} · forward ${c.forward_percent}% / reverse ${c.reverse_percent}%`;
     summary.append(row);
   });
-  $('pin-hint').textContent = data.board === 'esp32'
+  $('pin-hint').textContent = data.board === 'esp32c3' ? 'C3 input/output: 0, 1, 3, 4, 5, 6, 7, 10. Keep boot straps, native USB and UART pins free. Default GPIO3 → GPIO4.' : data.board === 'esp32'
     ? 'ESP32 output/input: 18, 19, 21, 22, 23, 25, 26, 27, 32, 33. Extra input-only: 34, 35, 36, 39.'
     : 'Pico input/output: GP0–GP22 and GP26–GP28. GP4 → GP5 by default.';
+}
+async function activateConnection(current) {
+  const data = await current.request('get'); loadMappings(data);
+  $('connection').textContent = 'CONNECTED'; $('dot').classList.add('online');
+  connecting = false; deviceButtons(true); status(data);
+  message('Board mappings loaded. Disarm before applying changes. Hold every input at neutral for one second before ARM ALL.');
+  polling = setInterval(() => {
+    if (protocol && protocol.pending.size === 0) protocol.request('get').catch(error => message(error.message));
+  }, bleLink ? 500 : 250);
 }
 async function connect() {
   if (!navigator.serial) { message('Web Serial is unavailable. Use desktop Chrome/Edge, Electron, or the native Android app.'); return; }
@@ -78,7 +122,9 @@ async function connect() {
   try {
     port = await navigator.serial.requestPort({ allowedBluetoothServiceClassIds: ['00001101-0000-1000-8000-00805f9b34fb'] });
     await port.open({ baudRate: 115200, bufferSize: 8192 });
-    try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch { /* Some SPP drivers lack modem signals. */ }
+    const vid = port.getInfo?.().usbVendorId;
+    const nativeUsb = vid === 0x2e8a || vid === 0x303a;
+    try { await port.setSignals({ dataTerminalReady: nativeUsb, requestToSend: false }); } catch { /* Some SPP drivers lack modem signals. */ }
     reader = port.readable.getReader(); writer = port.writable.getWriter();
     protocol = new Protocol(text => writer.write(new TextEncoder().encode(text)), status, error => {
       message(error.message + ' Use transmitter stop or the physical cutoff.'); void disconnect(false);
@@ -97,16 +143,23 @@ async function connect() {
     message('Connected. Waiting for board startup…');
     await new Promise(resolve => setTimeout(resolve, 2500));
     if (protocol !== current) return;
-    const data = await current.request('get'); loadMappings(data);
-    $('connection').textContent = 'CONNECTED'; $('dot').classList.add('online');
-    connecting = false; deviceButtons(true); status(data);
-    message('Board mappings loaded. Disarm before applying changes. Hold every input at neutral for one second before ARM ALL.');
-    polling = setInterval(() => {
-      if (protocol && protocol.pending.size === 0) protocol.request('get').catch(error => message(error.message));
-    }, 250);
+    await activateConnection(current);
   } catch (error) {
     message(`Connection failed: ${error.message}`); await disconnect(false);
-  } finally { connecting = false; $('connect').disabled = !!port; }
+  } finally { connecting = false; $('connect').disabled = $('connect-ble').disabled = !!protocol; }
+}
+async function connectBle() {
+  connecting = true; deviceButtons(false);
+  try {
+    const link = await openBle(text => protocol?.feed(text), error => { message(error.message); void disconnect(false); });
+    bleLink = link;
+    writer = { write: bytes => link.write(bytes), releaseLock() {} };
+    protocol = new Protocol(text => writer.write(new TextEncoder().encode(text)), status, error => {
+      message(error.message + ' Use transmitter stop or physical cutoff.'); void disconnect(false);
+    }, 15000);
+    await activateConnection(protocol);
+  } catch (error) { message(`BLE connection failed: ${error.message}`); await disconnect(false); }
+  finally { connecting = false; $('connect').disabled = $('connect-ble').disabled = !!protocol; }
 }
 async function disconnect(requestStop = true) {
   if (closing) return;
@@ -117,6 +170,7 @@ async function disconnect(requestStop = true) {
     catch { message('Disarm not confirmed. Use transmitter stop or physical cutoff.'); }
   }
   protocol = undefined; current?.close();
+  bleLink?.close(); bleLink = undefined;
   try { await reader?.cancel(); await readTask; } catch { /* Device may already be removed. */ }
   reader?.releaseLock(); reader = undefined;
   try { writer?.releaseLock(); await port?.close(); } catch { /* Device may already be removed. */ }
@@ -142,6 +196,7 @@ async function action(cmd, extra = {}, load = false) {
 }
 $('config-form').addEventListener('submit', e => e.preventDefault());
 $('connect').onclick = connect;
+$('connect-ble').onclick = connectBle;
 $('disconnect').onclick = () => disconnect();
 $('read').onclick = () => action('get', {}, true);
 $('apply').onclick = () => {
@@ -189,6 +244,17 @@ $('import').onchange = async event => {
 // Closing a page cannot await serial IO. The board remains autonomous; docs explain this limitation.
 window.addEventListener('beforeunload', () => { if (writer) void writer.write(new TextEncoder().encode('{"cmd":"disarm","id":0}\n')).catch(() => {}); });
 if (window.desktopSerial) {
+  window.desktopSerial.onBleDevices(devices => {
+    const list = $('ble-list'); list.replaceChildren();
+    for (const device of devices) {
+      const button = document.createElement('button'); button.textContent = device.deviceName || device.deviceId;
+      button.onclick = () => { window.desktopSerial.chooseBle(device.deviceId); $('ble-dialog').close(); }; list.append(button);
+    }
+    if (!devices.length) list.textContent = 'Scanning for RC-Limiter-C3. Power the board and enable Bluetooth.';
+    if (!$('ble-dialog').open) $('ble-dialog').showModal();
+  });
+  $('cancel-ble').onclick = () => { window.desktopSerial.chooseBle(''); $('ble-dialog').close(); };
+  $('ble-dialog').addEventListener('cancel', () => window.desktopSerial.chooseBle(''));
   window.desktopSerial.onPorts(ports => {
     const list = $('port-list'); list.replaceChildren();
     for (const port of ports) {

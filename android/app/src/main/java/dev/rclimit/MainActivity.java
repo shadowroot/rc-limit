@@ -3,6 +3,7 @@ package dev.rclimit;
 import android.Manifest;
 import android.app.*;
 import android.bluetooth.*;
+import android.bluetooth.le.*;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.hardware.usb.*;
@@ -49,6 +50,9 @@ public class MainActivity extends Activity {
     private int selectedMapping=0,protocolVersion=1;
     private String currentBoard="";
     private boolean refreshingMappings=false,boardArmed=false;
+    private BluetoothLeScanner bleScanner;
+    private ScanCallback bleScanCallback;
+    private AlertDialog blePicker;
 
     interface Link extends Closeable { int read(byte[] buffer) throws IOException; void write(byte[] data) throws IOException; }
     interface Success { void run(JSONObject data) throws JSONException; }
@@ -87,8 +91,10 @@ public class MainActivity extends Activity {
         LinearLayout connections=row(layout);
         button(connections,"USB OTG",this::chooseUsb,false);
         button(connections,"Bluetooth",this::chooseBluetooth,false);
+        button(connections,"BLE C3",this::chooseBle,false);
         button(connections,"Disconnect",()->disconnect(true),false);
-        notice=text(layout,"Defaults shown until Read board. Pico uses USB; original ESP32 uses USB or paired Bluetooth SPP.");
+        notice=text(layout,"Defaults shown until Read board. Pico: USB. Original ESP32: USB / Classic. C3: USB / BLE C3.");
+        button(row(layout),"Board layouts / suggested GPIOs / 5 V resistors",this::showBoardGuide,false);
         text(layout,"Receiver → ESC mappings (1–4). Limits below apply to the selected mapping.");
         mappingSelector=new Spinner(this); layout.addView(mappingSelector);
         mappingSelector.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -178,6 +184,7 @@ public class MainActivity extends Activity {
     }
     private boolean allowedPin(int pin,boolean output) {
         if(currentBoard.equals("pico")) return (pin>=0 && pin<=22) || (pin>=26 && pin<=28);
+        if(currentBoard.equals("esp32c3")) return pin==0 || pin==1 || (pin>=3 && pin<=7) || pin==10;
         if(!currentBoard.equals("esp32")) return true;
         for(int p:new int[]{18,19,21,22,23,25,26,27,32,33}) if(p==pin) return true;
         if(!output) for(int p:new int[]{34,35,36,39}) if(p==pin) return true;
@@ -217,7 +224,7 @@ public class MainActivity extends Activity {
     private void addMapping() {
         try {
             stashMapping();
-            int[][] pairs=currentBoard.equals("esp32")?new int[][]{{27,25},{26,33},{32,18},{19,21}}:new int[][]{{4,5},{6,7},{8,9},{10,11}};
+            int[][] pairs=currentBoard.equals("esp32c3")?new int[][]{{3,4},{5,6},{0,1},{7,10}}:currentBoard.equals("esp32")?new int[][]{{27,25},{26,33},{32,18},{19,21}}:new int[][]{{4,5},{6,7},{8,9},{10,11}};
             for(int[] pair:pairs) {
                 JSONObject candidate=new JSONObject();
                 for(int i=0;i<KEYS.length;i++) candidate.put(KEYS[i],DEFAULTS[i]);
@@ -304,10 +311,69 @@ public class MainActivity extends Activity {
             });
         }).show();
     }
+    private void showBoardGuide() {
+        try(InputStream input=getAssets().open("boards.json")) {
+            ByteArrayOutputStream bytes=new ByteArrayOutputStream();byte[] buffer=new byte[1024];int n;
+            while((n=input.read(buffer))!=-1) bytes.write(buffer,0,n);
+            JSONArray boards=new JSONArray(bytes.toString(StandardCharsets.UTF_8.name()));
+            String[] labels=new String[boards.length()];for(int i=0;i<labels.length;i++) labels[i]=boards.getJSONObject(i).getString("name");
+            new AlertDialog.Builder(this).setTitle("Board layout reference").setItems(labels,(dialog,index)->{
+                try {
+                    JSONObject b=boards.getJSONObject(index);StringBuilder text=new StringBuilder("Component/top view · USB at "+b.getString("usb")+"\n\n");
+                    JSONArray left=b.getJSONArray("left"),right=b.getJSONArray("right"),lp=b.getJSONArray("left_positions"),rp=b.getJSONArray("right_positions");
+                    for(int i=0;i<left.length();i++) text.append(String.format(Locale.ROOT,"%-17s %s\n",lp.getString(i)+" "+left.getString(i),rp.getString(i)+" "+right.getString(i)));
+                    text.append("\nSuggested receiver → ESC GPIOs:\n");JSONArray pairs=b.getJSONArray("pairs");
+                    for(int i=0;i<pairs.length();i++) {JSONArray pair=pairs.getJSONArray(i);text.append(pair.getInt(0)).append(" → ").append(pair.getInt(1)).append("\n");}
+                    text.append("\n").append(b.getString("notes")).append("\n\nAll GPIOs are 3.3 V, not 5 V tolerant. For a confirmed 5 V PWM signal: receiver → 4.7 kΩ → GPIO, plus 6.8 kΩ from GPIO to ground (1% resistors): about 2.96 V. A 3.3 V signal becomes 1.95 V and may not register. Prefer SN74LVC1G17 at 3.3 V if power sequencing varies. Add 10 kΩ from each ESC output GPIO to ground; optional 100–220 Ω output series resistor only reduces ringing, not voltage.\n\n").append(b.getString("source"));
+                    TextView view=new TextView(this);view.setText(text);view.setTextSize(12);view.setTypeface(android.graphics.Typeface.MONOSPACE);view.setPadding(20,20,20,20);view.setTextIsSelectable(true);
+                    ScrollView scroll=new ScrollView(this);scroll.addView(view);
+                    new AlertDialog.Builder(this).setTitle(b.getString("name")).setView(scroll).setPositiveButton("Close",null).show();
+                } catch(JSONException error) {tell(error.getMessage());}
+            }).show();
+        } catch(Exception error) {tell("Board guide unavailable: "+error.getMessage());}
+    }
+    private void stopBleScan() {
+        if(bleScanner!=null && bleScanCallback!=null) try {bleScanner.stopScan(bleScanCallback);}catch(SecurityException ignored){}
+        bleScanner=null;bleScanCallback=null;
+    }
+    private void chooseBle() {
+        if(connecting || link!=null) {tell("Disconnect before choosing another board.");return;}
+        String[] permissions=Build.VERSION.SDK_INT>=31?new String[]{Manifest.permission.BLUETOOTH_SCAN,Manifest.permission.BLUETOOTH_CONNECT}:new String[]{Manifest.permission.ACCESS_FINE_LOCATION};
+        for(String permission:permissions) if(checkSelfPermission(permission)!=PackageManager.PERMISSION_GRANTED) {requestPermissions(permissions,43);return;}
+        BluetoothAdapter adapter=((BluetoothManager)getSystemService(BLUETOOTH_SERVICE)).getAdapter();
+        if(adapter==null || !adapter.isEnabled() || adapter.getBluetoothLeScanner()==null) {tell("Enable Bluetooth before scanning for C3 BLE UART.");return;}
+        stopBleScan();
+        List<BluetoothDevice> devices=new ArrayList<>();ArrayAdapter<String> names=new ArrayAdapter<>(this,android.R.layout.simple_list_item_1);
+        bleScanner=adapter.getBluetoothLeScanner();
+        bleScanCallback=new ScanCallback() {
+            @Override public void onScanResult(int type,ScanResult result) {
+                ui.post(()->{
+                    BluetoothDevice device=result.getDevice();if(bleScanner==null || devices.contains(device)) return;
+                    devices.add(device);names.add((device.getName()==null?"RC UART":device.getName())+" · "+device.getAddress());names.notifyDataSetChanged();
+                });
+            }
+            @Override public void onScanFailed(int code) {ui.post(()->{stopBleScan();tell("BLE scan failed ("+code+")");});}
+        };
+        blePicker=new AlertDialog.Builder(this).setTitle("Choose C3 BLE serial device").setAdapter(names,(dialog,index)->{
+            BluetoothDevice device=devices.get(index);stopBleScan();connecting=true;int token=++generation;tell("Connecting C3 BLE UART…");
+            writes.execute(()->{
+                try {Link result=new BleLink(this,device);ui.post(()->accept(result,token));}
+                catch(Exception error) {ui.post(()->failedConnect(token,error));}
+            });
+        }).setNegativeButton("Cancel",(dialog,which)->stopBleScan()).create();
+        blePicker.setOnDismissListener(dialog->stopBleScan());blePicker.show();
+        ScanCallback scan=bleScanCallback;
+        bleScanner.startScan(Collections.singletonList(new ScanFilter.Builder().setServiceUuid(new ParcelUuid(BleLink.SERVICE)).build()),new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(),scan);
+        ui.postDelayed(()->{if(bleScanCallback==scan){stopBleScan();if(devices.isEmpty()) tell("No C3 BLE UART found. Check board power, firmware and Bluetooth permissions; on Android 8–11 enable Location for BLE scanning.");}},10000);
+    }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results) {
         super.onRequestPermissionsResult(code,permissions,results);
         if(code==42 && results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED) chooseBluetooth();
         else if(code==42) tell("Bluetooth permission denied. USB remains available.");
+        if(code==43) {
+            boolean granted=results.length>0;for(int value:results) granted=granted && value==PackageManager.PERMISSION_GRANTED;
+            if(granted) chooseBle();else tell("BLE permissions denied. USB remains available.");
+        }
     }
     private void failedConnect(int token,Exception error) {
         if(token!=generation) return; connecting=false; tell("Connection failed: "+error.getMessage());
@@ -352,7 +418,7 @@ public class MainActivity extends Activity {
             Runnable timeout=()->{
                 if(pending.remove(id)!=null){tell("No response. Output state unknown; use physical cutoff / transmitter stop.");disconnect(false);}
             };
-            pending.put(id,new Pending(success,timeout)); ui.postDelayed(timeout,3000);
+            pending.put(id,new Pending(success,timeout)); ui.postDelayed(timeout,destination instanceof BleLink?15000:3000);
             byte[] bytes=(request+"\n").getBytes(StandardCharsets.UTF_8);
             writes.execute(()->{
                 if(token!=generation || destination!=link) return;
@@ -401,6 +467,7 @@ public class MainActivity extends Activity {
         boardArmed=false; status.setText("OFFLINE · output state unknown");
         addMappingButton.setEnabled(draftMappings.size()<4); removeMappingButton.setEnabled(draftMappings.size()>1);
         if(old!=null) {
+            if(old instanceof BleLink) ui.postDelayed(()->closeQuietly(old),1200);
             writes.execute(()->{
                 try { if(stop) old.write("{\"cmd\":\"disarm\",\"id\":0}\n".getBytes(StandardCharsets.UTF_8)); }
                 catch(IOException ignored) {} finally { closeQuietly(old); }
@@ -439,7 +506,7 @@ public class MainActivity extends Activity {
         } catch(Exception error) { tell("Profile error: "+error.getMessage()); }
     }
     @Override protected void onStart() { super.onStart(); active=true; ui.post(poll); }
-    @Override protected void onStop() { active=false; ui.removeCallbacks(poll); disconnect(true); super.onStop(); }
+    @Override protected void onStop() { active=false; ui.removeCallbacks(poll); stopBleScan();if(blePicker!=null) blePicker.dismiss();disconnect(true); super.onStop(); }
     @Override protected void onDestroy() { unregisterReceiver(usbReceiver); writes.shutdown(); super.onDestroy(); }
     private static void closeQuietly(Closeable target) { if(target!=null) try {target.close();}catch(IOException ignored){} }
 
@@ -453,7 +520,7 @@ public class MainActivity extends Activity {
             port=driver.getPorts().get(0);
             try {
                 port.open(connection); port.setParameters(115200,8,UsbSerialPort.STOPBITS_1,UsbSerialPort.PARITY_NONE);
-                try {port.setDTR(false); port.setRTS(false);}catch(UnsupportedOperationException ignored){}
+                try {port.setDTR(driver instanceof CdcAcmSerialDriver); port.setRTS(false);}catch(UnsupportedOperationException ignored){}
             } catch(Exception error) { closeQuietly(port); connection.close(); throw new IOException(error); }
         }
         public int read(byte[] bytes) throws IOException { return port.read(bytes,200); }

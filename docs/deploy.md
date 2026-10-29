@@ -13,6 +13,7 @@ Install Arduino CLI and Python 3, then:
 # Or install just the target you need:
 ./scripts/setup-firmware.sh pico
 ./scripts/setup-firmware.sh esp32
+./scripts/setup-firmware.sh esp32c3
 ```
 
 This downloads pinned cores and ArduinoJson into ignored `.tools/arduino/`. It does not change your global Arduino configuration. It reuses an existing project configuration and can be rerun after a failed download.
@@ -25,11 +26,15 @@ Disconnect motor power, close serial monitors and configuration apps, and identi
 ./scripts/deploy.sh ports
 ./scripts/deploy.sh pico --port /dev/ttyACM0
 ./scripts/deploy.sh esp32 --port /dev/ttyUSB0
+# C3 Super Mini native USB:
+./scripts/deploy.sh esp32c3 --port /dev/ttyACM0
+# C3 DevKitM-1 onboard USB-to-UART:
+./scripts/deploy.sh esp32c3-devkit --port /dev/ttyUSB0
 # Windows example:
 ./scripts/deploy.sh esp32 --port COM5
 ```
 
-Each flash command first compiles the current source, stops on build failure, and uploads those newly generated artifacts to the selected port. No port is selected automatically. Only the standard RP2040 Pico and original ESP32 targets are configured. After upload, read back the settings before restoring motor power; arming remains an explicit app action.
+Each flash command first compiles the current source, stops on build failure, and uploads those newly generated artifacts to the selected port. No port is selected automatically. Pico, original ESP32, C3 Super Mini and official C3 DevKitM-1 targets are configured. The two C3 targets differ in USB CDC On Boot so the configuration stream uses the selected board connector. After upload, read back the settings before restoring motor power; arming remains an explicit app action.
 
 For a fresh Pico, hold BOOTSEL while connecting USB, then release it. Pass the mounted **RPI-RP2 volume**, not a raw block device:
 
@@ -46,9 +51,11 @@ To compile without touching hardware:
 ```sh
 ./scripts/deploy.sh pico --build-only
 ./scripts/deploy.sh esp32 --build-only
+./scripts/deploy.sh esp32c3 --build-only
+./scripts/deploy.sh esp32c3-devkit --build-only
 ```
 
-Artifacts go to `build/pico/` or `build/esp32/`; compiler working files go to `build/work-pico/` or `build/work-esp32/`.
+Artifacts go to `build/pico/`, `build/esp32/`, `build/esp32c3/` or `build/esp32c3-devkit/`; compiler working files go to the corresponding `build/work-TARGET/`.
 
 ## Install the native Android app
 
@@ -119,4 +126,4 @@ RC_LIMIT_ARDUINO_CLI=/opt/arduino-cli ./scripts/setup-firmware.sh pico
 RC_LIMIT_ADB="$ANDROID_HOME/platform-tools/adb" ./scripts/deploy.sh android --serial YOUR_DEVICE_ID --apk build/android/rc-limit-debug.apk
 ```
 
-An existing overridden Arduino configuration is preserved. If you supply one, ensure it already includes the board index URLs shown in [build.md](build.md). The scripts do not use sudo, change device permissions, automatically install OS packages, arm the limiter, or select a Bluetooth connection. Pair/connect Bluetooth through the operating system or Android app after deployment.
+An existing overridden Arduino configuration is preserved. If you supply one, ensure it already includes the board index URLs shown in [build.md](build.md). The scripts do not use sudo, change device permissions, automatically install OS packages, arm the limiter, or select a Bluetooth connection. Pair Classic SPP through the OS; connect C3 BLE directly through the app's BLE chooser after deployment.

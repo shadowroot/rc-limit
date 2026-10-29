@@ -6,6 +6,8 @@ An RC receiver's three-wire channel normally has ground, receiver supply (often 
 
 A conventional RC ESC receives pulse width commands, typically around 1000–2000 µs, often with 1500 µs neutral for bidirectional operation. The limiter measures those pulses and generates new pulses with reduced excursion around stop. It does not lower the ESC battery voltage or its motor current directly. A resistor in the signal wire will not provide a useful throttle limit. The [Pololu interface guide](https://www.pololu.com/blog/16/electrical-characteristics-of-servos-and-introduction-to-the-servo-control-interface) explains the pulse interface; confirm the exact ESC manual.
 
+See [board layouts and suggested pins](board-layouts.md) for Pico, original ESP32 DevKit, C3 Super Mini and C3 DevKitM-1 header positions and build targets. C3 supports USB plus BLE UART.
+
 ## Signal path and common ground
 
 ```text
@@ -39,7 +41,7 @@ For one receiver signal driving two ESCs, assign the same input GPIO to both map
 
 ## Receiver 5 V signal → 3.3 V GPIO
 
-Treat Pico and ESP32 GPIOs as **3.3 V only**. Do not connect a measured 5 V signal directly. GPIO supply/absolute maximum ratings appear in the [RP2040 datasheet](https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf) and [ESP32 datasheet](https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf).
+Treat Pico, original ESP32 and ESP32-C3 GPIOs as **3.3 V only**. Do not connect a measured 5 V signal directly. GPIO supply/absolute maximum ratings appear in the [RP2040 datasheet](https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf) and [ESP32 datasheet](https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf).
 
 **Preferred circuit: SN74LVC1G17 Schmitt buffer powered at 3.3 V.** Its input accepts up to 5.5 V and it supports partial power-down isolation; this makes it a suitable choice for a receiver that remains powered while the MCU is off. Use the exact chip's datasheet and package pinout, not the similarly named AHCT part.
 
@@ -57,16 +59,18 @@ Power it from the MCU's regulated 3.3 V rail. A 47 kΩ pulldown on A can define 
 **Simple divider option, only for a confirmed approximately 5 V signal and matched power sequencing:**
 
 ```text
-Receiver SIGNAL ── 10 kΩ ──┬──────── MCU input GPIO
+Receiver SIGNAL ── 4.7 kΩ ─┬──────── MCU input GPIO
                           │
-                         15 kΩ
+                         6.8 kΩ
                           │
 Common GND ────────────────┴──────── MCU GND
 ```
 
-With 1% resistors, nominal output is `Vin × 15/(10+15)` = **3.0 V at 5.0 V**, and 3.3 V at 5.5 V nominal. Check resistor tolerances, actual source voltage, GPIO high threshold and cable capacitance. This divider will reduce a 3.3 V signal to about 1.98 V, which may not reliably register as high. Do not use it blindly on receivers that already output 3.0–3.3 V.
+Use **4.7 kΩ series / 6.8 kΩ to ground**, 1% resistors, rated at least 1/8 W. Nominal output is `Vin × 6.8/(4.7+6.8)` = **2.96 V at 5.0 V**. For a confirmed 4.5–5.5 V pulse high, including 1% resistor extremes, the calculated junction high is approximately 2.64–3.28 V. Check actual source voltage, MCU supply/high threshold and cable capacitance. A 3.3 V signal becomes about 1.95 V and may not register. Do not use it blindly on receivers that already output 3.0–3.3 V. The former 10 kΩ / 15 kΩ option gives 3.0 V at 5.0 V but exceeds 3.3 V nominal at some 5.5 V/tolerance extremes; the 4.7 kΩ / 6.8 kΩ pair provides more margin. Do not parallel another input pulldown without recalculating the ratio.
 
 A divider does not isolate an unpowered MCU and can feed current into protection structures. Prefer the powered-down-tolerant buffer when supplies can turn on independently. Neither circuit above is specified for a 6 V/7.4 V/HV signal. Measure/check the signal separately from an HV receiver's supply and select a translator rated for the actual waveform. An oscilloscope is needed to check pulse shape and peaks; a multimeter averages pulses and cannot establish logic-high voltage.
+
+An optional **100–220 Ω series resistor on the MCU ESC output** may reduce ringing; it does not perform voltage conversion or set a throttle limit. Keep the separate 10 kΩ output pulldown.
 
 ## MCU 3.3 V output → ESC input
 

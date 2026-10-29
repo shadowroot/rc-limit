@@ -12,15 +12,25 @@ async function main() {
     await page.setViewportSize({ width: 1280, height: 920 });
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.waitForSelector('#bidirectional');
-    assert.equal(await page.locator('#config-form input, #config-form select').count(), 15);
+    assert.equal(await page.locator('#config-form input[name], #config-form select[name]').count(), 15);
+    await page.waitForFunction(() => document.getElementById('board-layout').options.length === 4);
     assert.equal(await page.evaluate(() => !!navigator.serial && !!window.desktopSerial), true);
+    assert.equal(await page.evaluate(() => !!navigator.bluetooth), true);
     await page.locator('a[href="#pins"]').click();
     await page.locator('#connect').click();
     await page.locator('#port-dialog').waitFor({ state: 'visible' });
     await page.locator('#cancel-port').click();
     await page.waitForFunction(() => !document.getElementById('port-dialog').open);
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window.webContents.emit('select-bluetooth-device', { preventDefault() {} },
+        [{ deviceId: 'test-c3', deviceName: 'RC-Limiter-C3' }], id => { global.testBleChoice = id; });
+    });
+    await page.locator('#ble-dialog').waitFor({ state: 'visible' });
+    await page.locator('#ble-list button').click();
+    assert.equal(await app.evaluate(() => global.testBleChoice), 'test-c3');
     assert.deepEqual(errors, []);
-    console.log('Electron integration passed: page load, 15 fields, Web Serial, preload bridge, chooser after anchor navigation, cancel. No hardware port was opened.');
+    console.log('Electron integration passed: board layouts, 15 config fields, Web Serial, serial chooser, BLE device chooser/preload callback. BLE event was simulated; no hardware port or radio connection opened.');
   } finally { await app.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

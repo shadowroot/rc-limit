@@ -3,15 +3,23 @@
 #include <EEPROM.h>
 #include "limiter.h"
 #if defined(ARDUINO_ARCH_ESP32)
-#include <BluetoothSerial.h>
 #include <esp_task_wdt.h>
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+#include "ble_serial.h"
+BleSerial BT;
+const rc::Board BOARD=rc::Board::Esp32C3;
+constexpr int PWM_BITS=14;
+#else
+#include <BluetoothSerial.h>
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED) || !defined(CONFIG_BT_SPP_ENABLED)
 #error "Use the original ESP32 target with Bluetooth Classic SPP enabled."
 #endif
 BluetoothSerial BT;
+const rc::Board BOARD=rc::Board::Esp32;
+constexpr int PWM_BITS=16;
+#endif
 portMUX_TYPE captureMux = portMUX_INITIALIZER_UNLOCKED;
 #define ISR_ATTR IRAM_ATTR
-const rc::Board BOARD=rc::Board::Esp32;
 #else
 #include <hardware/pwm.h>
 #include <hardware/clocks.h>
@@ -63,7 +71,7 @@ void (*const captureHandlers[])()={capture0,capture1,capture2,capture3};
 void writeOutputs() {
   for(int i=0;i<mappings.count;i++) {
 #if defined(ARDUINO_ARCH_ESP32)
-    ledcWrite(i,uint32_t(bank.outputs[i])*65535/20000);
+    ledcWrite(i,uint32_t(bank.outputs[i])*((1u<<PWM_BITS)-1)/20000);
 #else
     pwm_set_gpio_level(mappings.channels[i].output_pin,bank.outputs[i]);
 #endif
@@ -73,8 +81,8 @@ void attachHardware() {
   bank=rc::Bank{}; bank.disarm(mappings);
 #if defined(ARDUINO_ARCH_ESP32)
   for(int i=0;i<mappings.count;i++) {
-    ledcSetup(i,50,16);
-    ledcWrite(i,uint32_t(bank.outputs[i])*65535/20000);
+    ledcSetup(i,50,PWM_BITS);
+    ledcWrite(i,uint32_t(bank.outputs[i])*((1u<<PWM_BITS)-1)/20000);
     ledcAttachPin(mappings.channels[i].output_pin,i);
   }
 #else
@@ -196,7 +204,9 @@ void response(Stream& io,const char* error=nullptr) {
   JsonDocument doc;
   doc["ok"]=error==nullptr; doc["id"]=requestId;
   if(error) doc["error"]=error;
-#if defined(ARDUINO_ARCH_ESP32)
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+  doc["board"]="esp32c3";
+#elif defined(ARDUINO_ARCH_ESP32)
   doc["board"]="esp32";
 #else
   doc["board"]="pico";
@@ -216,7 +226,19 @@ void response(Stream& io,const char* error=nullptr) {
   }
   JsonObject transports=doc["transports"].to<JsonObject>();
   transports["usb_serial"]=true; transports["bluetooth_serial"]=bluetoothStarted;
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+  transports["bluetooth_type"]="ble";
+  transports["bluetooth_name"]="RC-Limiter-C3";
+  transports["ble_service"]=BleSerial::SERVICE;
+#if ARDUINO_USB_CDC_ON_BOOT
+  transports["usb_interface"]="native_cdc";
+#else
+  transports["usb_interface"]="usb_uart";
+#endif
+#else
+  transports["bluetooth_type"]=bluetoothStarted?"classic_spp":"none";
   if(bluetoothStarted) transports["bluetooth_name"]="RC-Limiter";
+#endif
   serializeJson(doc,io); io.println();
 }
 void command(Stream& io,const char* line) {
@@ -247,6 +269,7 @@ void command(Stream& io,const char* line) {
 }
 struct Lines {
   char data[3072]; size_t used=0; bool overflow=false;
+  void reset() { used=0; overflow=false; }
   void poll(Stream& io) {
     for(int n=0;n<64 && io.available();n++) {
       char ch=io.read();
@@ -261,7 +284,9 @@ struct Lines {
   }
 } usbLines,btLines;
 void setup() {
-#if defined(ARDUINO_ARCH_ESP32)
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+  mappings.channels[0].input_pin=3; mappings.channels[0].output_pin=4;
+#elif defined(ARDUINO_ARCH_ESP32)
   mappings.channels[0].input_pin=27; mappings.channels[0].output_pin=25;
 #endif
 #if defined(ARDUINO_ARCH_ESP32)
@@ -272,7 +297,11 @@ void setup() {
   stored=storageReady && loadConfig();
   attachHardware(); Serial.begin(115200);
 #if defined(ARDUINO_ARCH_ESP32)
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+  bluetoothStarted=BT.begin();
+#else
   bluetoothStarted=BT.begin("RC-Limiter");
+#endif
   esp_task_wdt_init(2,true); esp_task_wdt_add(nullptr);
 #else
   rp2040.wdt_begin(2000);
@@ -281,6 +310,11 @@ void setup() {
 void loop() {
   update(); usbLines.poll(Serial);
 #if defined(ARDUINO_ARCH_ESP32)
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+  static uint32_t bleEpoch=0;
+  if(BT.epoch()!=bleEpoch) { bleEpoch=BT.epoch(); btLines.reset(); }
+  BT.pollTx();
+#endif
   update(); if(bluetoothStarted) btLines.poll(BT); esp_task_wdt_reset();
 #else
   rp2040.wdt_reset();

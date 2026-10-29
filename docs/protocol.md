@@ -1,6 +1,6 @@
 # Serial protocol and mappings
 
-USB serial on both Pico and original ESP32 DevKit, and ESP32 Bluetooth Classic SPP, use the same version 2 newline-delimited JSON commands. Use **115200, 8N1** for the ESP32 USB-to-UART bridge; USB CDC and Bluetooth baud are abstractions. Pico uses native USB CDC. ESP32 Bluetooth starts automatically as **RC-Limiter**, alongside USB.
+USB serial on Pico, original ESP32 and C3, ESP32 Bluetooth Classic SPP, and C3 BLE UART use the same version 2 newline-delimited JSON commands. Use **115200, 8N1** for the ESP32 USB-to-UART bridge; USB CDC and Bluetooth baud are abstractions. Pico uses native USB CDC. ESP32 Bluetooth starts automatically as **RC-Limiter**, alongside USB.
 
 Use one JSON object per line, maximum **3071 bytes** excluding the newline. Overlong lines are discarded through their newline and an error response follows. Each transport has an independent line buffer. Replies go to the transport carrying the command. There is no unsolicited telemetry; poll `get` at 2–4 Hz, waiting for the preceding reply. Four-channel replies are larger and can reduce achievable polling rate over USB UART. Use one controller at a time.
 
@@ -17,7 +17,7 @@ Every reply includes `ok`, echoed integer `id` (0 when omitted/unparseable), `bo
 - `channel_states`: matching entries containing `input_us`, `output_us`, `signal_ok` and `armed` for each mapping.
 - Top-level `armed` describes all outputs; top-level `signal_ok` is true only when all mapped inputs are healthy.
 - For legacy inspection, top-level `input_us`, `output_us` and `config` describe mapping 1 only.
-- `transports`: `usb_serial: true`, plus `bluetooth_serial` equal to the actual SPP startup result. If enabled, `bluetooth_name` is `RC-Limiter`. Pico reports Bluetooth false. A false result on ESP32 indicates Bluetooth initialization failed; USB remains available. These fields describe capabilities, not which connection carried the command.
+- `transports`: `usb_serial: true`, plus `bluetooth_serial` equal to the wireless startup result. `bluetooth_type` is `classic_spp`, `ble` or `none`; names are `RC-Limiter` (original ESP32) and `RC-Limiter-C3` (C3). C3 also reports `ble_service` and `usb_interface` (`native_cdc` for Super Mini or `usb_uart` for DevKitM-1). Pico reports Bluetooth false. A false result on ESP32 indicates Bluetooth initialization failed; USB remains available. These fields describe capabilities, not which connection carried the command.
 
 `get` reads state. `disarm` clears all arming and neutral dwell and requests each stop pulse. `arm` succeeds atomically only when **every input** is healthy and all inputs have remained at their own neutral for one second. Losing any mapped input stops and disarms all outputs; restoration never rearms. `save` writes all active mappings to flash, not edits still in a GUI form.
 
@@ -49,7 +49,7 @@ Legacy `{"cmd":"set","config":{...}}` is accepted only when the live board has e
 | `deadband` | 0–100 µs around receiver neutral, smaller than either receiver calibration half-span |
 | `timeout_ms` | 40–250 ms since the last completed receiver pulse; default 100 |
 
-Pico input/output allowlist: **GP0–GP22, GP26–GP28**. ESP32 output/input allowlist: **18,19,21,22,23,25,26,27,32,33**; extra input-only pins: **34,35,36,39**. ESP32 flash, UART programming, boot strapping and unavailable GPIOs are deliberately excluded. Both assigned pins must support their assigned direction; they cannot be the same GPIO. Match your module schematic even when a GPIO is allowlisted.
+C3 input/output allowlist: **GPIO0,1,3,4,5,6,7,10**, default **GPIO3→GPIO4**. C3 straps 2/8/9, native USB 18/19 and UART 20/21 are excluded. Pico input/output allowlist: **GP0–GP22, GP26–GP28**. ESP32 output/input allowlist: **18,19,21,22,23,25,26,27,32,33**; extra input-only pins: **34,35,36,39**. ESP32 flash, UART programming, boot strapping and unavailable GPIOs are deliberately excluded. Both assigned pins must support their assigned direction; they cannot be the same GPIO. Match your module schematic even when a GPIO is allowlisted.
 
 Inputs may repeat across mappings for fan-out. Outputs must be unique across the array, and no output may also occur as any mapping's input. On Pico, output GPIOs whose numbers differ by 16 share a physical PWM slice/channel and are rejected. Different channels on the same slice are supported and initialized together at 50 Hz. ESP32 uses separate LEDC channels for the mappings.
 
@@ -75,3 +75,19 @@ Hardware PWM repeats at 50 Hz. Normal receiver timeout is evaluated in the main 
 Each ESC sees no pulses during some boot/remap/reset intervals, then its configured stop pulse. Pin changes can truncate one frame. Perform them only with motor power removed. Flash writes happen only while disarmed. Saved data uses a magic/schema value, a version 2 profile and FNV-1a checksum, with 4096 bytes of EEPROM emulation. Saving is not power-failure atomic. An interrupted/corrupt save or unavailable storage may cause fallback to one default mapping on next boot. Confirm `saved`, mapping count, pins and every limit after reboot. On ESP32, expanding old EEPROM emulation from 1024 to 4096 bytes may itself perform an NVS write during startup.
 
 Common errors: `invalid_json`, `invalid_config` (legacy set), `invalid_mappings`, `use_set_mappings`, `disarm_first`, `hold_all_neutral_for_1s`, `save_failed`, `unknown_command`, `line_too_long`. Receiver restoration never rearms automatically.
+
+## C3 BLE UART transport
+
+C3 firmware advertises **RC-Limiter-C3** with the [Nordic UART Service](https://nrfconnectdocs.nordicsemi.com/ncs/latest/nrf/libraries/bluetooth/services/nus.html):
+
+| UUID | Role |
+|---|---|
+| `6e400001-b5a3-f393-e0a9-e50e24dcca9e` | Service |
+| `6e400002-b5a3-f393-e0a9-e50e24dcca9e` | RX: central writes commands to the board |
+| `6e400003-b5a3-f393-e0a9-e50e24dcca9e` | TX: board sends reply notifications to the central |
+
+Subscribe to TX notifications before writing commands. App clients serialize acknowledged RX writes in **20-byte chunks**, which work with the default 23-byte ATT MTU. A newline, not a BLE packet boundary, terminates a JSON message. Reassemble TX notification fragments before parsing; commands and replies can span many packets. IDs retain their usual request/reply meaning. Larger MTUs are not required.
+
+Firmware BLE callbacks enqueue data; the main loop processes JSON and receiver failsafes. TX is drained nonblockingly, up to 20 bytes per 5 ms loop interval, retaining unsent bytes if the BLE stack reports congestion. Firmware has 4096-byte RX and 8192-byte TX rings; a ring overflow quarantines that BLE session until reconnect. Partial receive lines and queues are cleared on BLE session changes. A reconnect does not arm the board. BLE app requests allow 15 seconds for fragmented command/reply delivery, while normal receiver timeout remains independently configured per mapping.
+
+The service has no pairing, bonding or application authentication requirement. Anyone able to connect locally can configure the board; use a controlled bench environment. Connection loss or a response timeout does not prove disarm was delivered. USB remains active, but use a single controller to avoid competing state changes. The original ESP32 build keeps Classic SPP and does not advertise this BLE service.

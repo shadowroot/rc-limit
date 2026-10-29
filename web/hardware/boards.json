@@ -1,0 +1,434 @@
+[
+  {
+    "id": "pico",
+    "name": "Raspberry Pi Pico (RP2040)",
+    "firmware": "pico",
+    "usb": "top",
+    "left": [
+      "GP0",
+      "GP1",
+      "GND",
+      "GP2",
+      "GP3",
+      "GP4",
+      "GP5",
+      "GND",
+      "GP6",
+      "GP7",
+      "GP8",
+      "GP9",
+      "GND",
+      "GP10",
+      "GP11",
+      "GP12",
+      "GP13",
+      "GND",
+      "GP14",
+      "GP15"
+    ],
+    "right": [
+      "VBUS",
+      "VSYS",
+      "GND",
+      "3V3_EN",
+      "3V3",
+      "ADC_VREF",
+      "GP28",
+      "AGND",
+      "GP27",
+      "GP26",
+      "RUN",
+      "GP22",
+      "GND",
+      "GP21",
+      "GP20",
+      "GP19",
+      "GP18",
+      "GND",
+      "GP17",
+      "GP16"
+    ],
+    "left_positions": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20"
+    ],
+    "right_positions": [
+      "40",
+      "39",
+      "38",
+      "37",
+      "36",
+      "35",
+      "34",
+      "33",
+      "32",
+      "31",
+      "30",
+      "29",
+      "28",
+      "27",
+      "26",
+      "25",
+      "24",
+      "23",
+      "22",
+      "21"
+    ],
+    "pairs": [
+      [
+        4,
+        5
+      ],
+      [
+        6,
+        7
+      ],
+      [
+        8,
+        9
+      ],
+      [
+        10,
+        11
+      ]
+    ],
+    "avoid": [],
+    "input_only": [],
+    "notes": "Native USB CDC. GP4 is physical pin 6; GP5 is pin 7. Outputs 16 GPIOs apart share a PWM channel.",
+    "source": "https://datasheets.raspberrypi.com/pico/Pico-R3-A4-Pinout.pdf"
+  },
+  {
+    "id": "esp32-devkit",
+    "name": "ESP32-DevKitC V4 / WROOM (38 pins)",
+    "firmware": "esp32",
+    "usb": "bottom",
+    "left": [
+      "3V3",
+      "EN",
+      "GPIO36",
+      "GPIO39",
+      "GPIO34",
+      "GPIO35",
+      "GPIO32",
+      "GPIO33",
+      "GPIO25",
+      "GPIO26",
+      "GPIO27",
+      "GPIO14",
+      "GPIO12",
+      "GND",
+      "GPIO13",
+      "GPIO9",
+      "GPIO10",
+      "GPIO11",
+      "5V"
+    ],
+    "right": [
+      "GND",
+      "GPIO23",
+      "GPIO22",
+      "GPIO1",
+      "GPIO3",
+      "GPIO21",
+      "GND",
+      "GPIO19",
+      "GPIO18",
+      "GPIO5",
+      "GPIO17",
+      "GPIO16",
+      "GPIO4",
+      "GPIO0",
+      "GPIO2",
+      "GPIO15",
+      "GPIO8",
+      "GPIO7",
+      "GPIO6"
+    ],
+    "left_positions": [
+      "J2.1",
+      "J2.2",
+      "J2.3",
+      "J2.4",
+      "J2.5",
+      "J2.6",
+      "J2.7",
+      "J2.8",
+      "J2.9",
+      "J2.10",
+      "J2.11",
+      "J2.12",
+      "J2.13",
+      "J2.14",
+      "J2.15",
+      "J2.16",
+      "J2.17",
+      "J2.18",
+      "J2.19"
+    ],
+    "right_positions": [
+      "J3.1",
+      "J3.2",
+      "J3.3",
+      "J3.4",
+      "J3.5",
+      "J3.6",
+      "J3.7",
+      "J3.8",
+      "J3.9",
+      "J3.10",
+      "J3.11",
+      "J3.12",
+      "J3.13",
+      "J3.14",
+      "J3.15",
+      "J3.16",
+      "J3.17",
+      "J3.18",
+      "J3.19"
+    ],
+    "pairs": [
+      [
+        27,
+        25
+      ],
+      [
+        26,
+        33
+      ],
+      [
+        32,
+        18
+      ],
+      [
+        19,
+        21
+      ]
+    ],
+    "avoid": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "input_only": [
+      34,
+      35,
+      36,
+      39
+    ],
+    "notes": "USB-to-UART bridge + Bluetooth Classic SPP. Diagram is the official 38-pin DevKitC, not a universal 30-pin clone layout. Use printed GPIO labels on other DevKits. Grey GPIOs are outside this project's conservative allowlist.",
+    "source": "https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html"
+  },
+  {
+    "id": "esp32c3-supermini",
+    "name": "ESP32-C3 Super Mini (common 16-pin)",
+    "firmware": "esp32c3",
+    "usb": "top",
+    "left": [
+      "5V",
+      "GND",
+      "3V3",
+      "GPIO4",
+      "GPIO3",
+      "GPIO2",
+      "GPIO1",
+      "GPIO0"
+    ],
+    "right": [
+      "GPIO5",
+      "GPIO6",
+      "GPIO7",
+      "GPIO8",
+      "GPIO9",
+      "GPIO10",
+      "GPIO20",
+      "GPIO21"
+    ],
+    "left_positions": [
+      "L1",
+      "L2",
+      "L3",
+      "L4",
+      "L5",
+      "L6",
+      "L7",
+      "L8"
+    ],
+    "right_positions": [
+      "R1",
+      "R2",
+      "R3",
+      "R4",
+      "R5",
+      "R6",
+      "R7",
+      "R8"
+    ],
+    "pairs": [
+      [
+        3,
+        4
+      ],
+      [
+        5,
+        6
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        7,
+        10
+      ]
+    ],
+    "avoid": [
+      2,
+      8,
+      9,
+      18,
+      19,
+      20,
+      21
+    ],
+    "input_only": [],
+    "notes": "Native USB Serial/JTAG on GPIO18/19 (not header GPIO20/21). BLE serial, not Bluetooth Classic. GPIO2/8/9 are boot straps; 8 often drives the LED and 9 the BOOT button. L/R labels count rows, not standardized connector numbers. Clone layouts vary. GPIO4\u20137 require external JTAG to be unused.",
+    "source": "https://smartstream-electronics.co.uk/assets/datasheets/ESP32-C3-SuperMini.pdf"
+  },
+  {
+    "id": "esp32c3-devkit",
+    "name": "ESP32-C3-DevKitM-1 (30 pins)",
+    "firmware": "esp32c3",
+    "usb": "bottom",
+    "left": [
+      "GND",
+      "3V3",
+      "3V3",
+      "GPIO2",
+      "GPIO3",
+      "GND",
+      "RST",
+      "GND",
+      "GPIO0",
+      "GPIO1",
+      "GPIO10",
+      "GND",
+      "5V",
+      "5V",
+      "GND"
+    ],
+    "right": [
+      "GND",
+      "GPIO21",
+      "GPIO20",
+      "GND",
+      "GPIO9",
+      "GPIO8",
+      "GND",
+      "GPIO7",
+      "GPIO6",
+      "GPIO5",
+      "GPIO4",
+      "GND",
+      "GPIO18",
+      "GPIO19",
+      "GND"
+    ],
+    "left_positions": [
+      "J1.1",
+      "J1.2",
+      "J1.3",
+      "J1.4",
+      "J1.5",
+      "J1.6",
+      "J1.7",
+      "J1.8",
+      "J1.9",
+      "J1.10",
+      "J1.11",
+      "J1.12",
+      "J1.13",
+      "J1.14",
+      "J1.15"
+    ],
+    "right_positions": [
+      "J3.1",
+      "J3.2",
+      "J3.3",
+      "J3.4",
+      "J3.5",
+      "J3.6",
+      "J3.7",
+      "J3.8",
+      "J3.9",
+      "J3.10",
+      "J3.11",
+      "J3.12",
+      "J3.13",
+      "J3.14",
+      "J3.15"
+    ],
+    "pairs": [
+      [
+        3,
+        4
+      ],
+      [
+        5,
+        6
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        7,
+        10
+      ]
+    ],
+    "avoid": [
+      2,
+      8,
+      9,
+      18,
+      19,
+      20,
+      21
+    ],
+    "input_only": [],
+    "notes": "The official DevKitM-1 USB connector uses a USB-to-UART bridge on GPIO20/21. Build with esp32c3-devkit for that connector. GPIO18/19 are the chip's separate native USB signals; keep them free. BLE serial is available. GPIO4\u20137 require external JTAG to be unused.",
+    "source": "https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c3/esp32-c3-devkitm-1/user_guide.html"
+  }
+]

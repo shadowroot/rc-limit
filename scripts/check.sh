@@ -8,6 +8,9 @@ g++ -std=c++11 -Wall -Wextra -Werror -fsanitize=undefined,address tests/test_lim
 ASAN_OPTIONS=detect_leaks=0 "$test_binary"
 node tests/protocol.test.mjs
 node --check web/app.mjs
+node tests/hardware-ble.test.mjs
+node --check web/ble.mjs
+node --check web/boards.mjs
 node --check electron/main.cjs
 node --check electron/preload.cjs
 bash -n scripts/deploy-common.sh scripts/setup-firmware.sh scripts/deploy.sh

@@ -4,11 +4,11 @@ source "$(dirname "$0")/deploy-common.sh"
 set -- "${RC_ARGS[@]}"
 target=${1:-all}
 if [[ "$target" == --help || "$target" == -h ]]; then
-  printf 'Usage: scripts/setup-firmware.sh [pico|esp32|all] [--dry-run]\nRequires Arduino CLI and Python 3. Installs pinned cores in project-local .tools/.\n'
+  printf 'Usage: scripts/setup-firmware.sh [pico|esp32|esp32c3|esp32c3-devkit|all] [--dry-run]\nRequires Arduino CLI and Python 3. Installs pinned cores in project-local .tools/.\n'
   exit 0
 fi
 [[ $# -le 1 ]] || rc_die 'Expected at most one target.'
-case "$target" in pico|esp32|all) ;; *) rc_die "Unknown target: $target";; esac
+case "$target" in pico|esp32|esp32c3|esp32c3-devkit|all) ;; *) rc_die "Unknown target: $target";; esac
 cd "$RC_ROOT"
 rc_need "$RC_CLI"; rc_need python3
 if [[ ! -f "$RC_CONFIG" ]]; then
@@ -38,6 +38,6 @@ PY
 fi
 rc_arduino core update-index
 if [[ "$target" == pico || "$target" == all ]]; then rc_arduino core install rp2040:rp2040@4.4.3; fi
-if [[ "$target" == esp32 || "$target" == all ]]; then rc_arduino core install esp32:esp32@2.0.17; fi
+if [[ "$target" == esp32 || "$target" == esp32c3 || "$target" == esp32c3-devkit || "$target" == all ]]; then rc_arduino core install esp32:esp32@2.0.17; fi
 rc_arduino lib install ArduinoJson@7.4.2
 printf 'Firmware toolchain setup finished. Configuration: %s\n' "$RC_CONFIG"
