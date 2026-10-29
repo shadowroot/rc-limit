@@ -112,3 +112,5 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 ## CI and releases
 
 `.github/workflows/build.yml` runs checks and all four PlatformIO builds, Android debug assembly, Linux Electron packaging and web archiving. `v*` tag pushes create draft releases only after all jobs succeed. Packages must contain board identity, source commit, checksums and flashing instructions; never publish an application-only ESP binary as a complete fresh-device image. No hardware is flashed by CI. See `docs/releases.md`.
+
+GitHub Pages CD is in `.github/workflows/pages.yml`. Publish only `web/`, deploy only main, and keep project-site relative paths working under `/rc-limit/`. PRs must not deploy production. Repository Pages source must be configured as GitHub Actions by an admin.

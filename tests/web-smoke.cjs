@@ -9,7 +9,9 @@ async function main() {
   const { defaults } = await import('../web/protocol.mjs');
   const server = http.createServer(async (req, res) => {
     const pathname = new URL(req.url, 'http://localhost').pathname;
-    const filename = pathname === '/' ? 'index.html' : pathname.slice(1);
+    const base = '/rc-limit/';
+    if (!pathname.startsWith(base)) { res.writeHead(404).end(); return; }
+    const filename = pathname === base ? 'index.html' : pathname.slice(base.length);
     if (!['index.html', 'app.mjs', 'protocol.mjs', 'ble.mjs', 'boards.mjs', 'hardware/boards.json', 'style.css'].includes(filename)) { res.writeHead(404).end(); return; }
     res.setHeader('Content-Type', filename.endsWith('.mjs') ? 'text/javascript' : filename.endsWith('.json') ? 'application/json' : filename.endsWith('.css') ? 'text/css' : 'text/html');
     res.end(await fs.readFile(path.join(project, 'web', filename)));
@@ -65,7 +67,7 @@ async function main() {
       }, disconnect() { this.connected = false; device.dispatchEvent(new Event('gattserverdisconnected')); } };
       Object.defineProperty(navigator, 'bluetooth', { configurable: true, value: { async requestDevice(options) { window.bleRequestOptions = options; return device; } } });
     }, defaults);
-    await page.goto(`http://127.0.0.1:${server.address().port}`);
+    await page.goto(`http://127.0.0.1:${server.address().port}/rc-limit/`);
     assert.equal(await page.locator('#config-form input[name], #config-form select[name]').count(), 15);
     await page.locator('#board-layout option').last().waitFor({ state: 'attached' });
     assert.equal(await page.locator('#board-layout option').count(), 4);
@@ -146,7 +148,7 @@ async function main() {
     assert.match(await page.locator('#message').textContent(), /confirmed DISARM/);
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-    await page.goto(`http://127.0.0.1:${server.address().port}/?board=esp32`);
+    await page.goto(`http://127.0.0.1:${server.address().port}/rc-limit/?board=esp32`);
     await page.locator('#connect').click();
     await page.waitForFunction(() => document.getElementById('connection').textContent === 'CONNECTED');
     assert.equal(await page.locator('#input_pin').inputValue(), '27');
@@ -159,7 +161,7 @@ async function main() {
     await page.waitForFunction(() => window.simulatedMappings.length === 2);
     await page.locator('#disconnect').click();
     await page.waitForFunction(() => document.getElementById('connection').textContent === 'OFFLINE');
-    await page.goto(`http://127.0.0.1:${server.address().port}/?board=esp32c3`);
+    await page.goto(`http://127.0.0.1:${server.address().port}/rc-limit/?board=esp32c3`);
     await page.locator('#connect').click();
     await page.waitForFunction(() => document.getElementById('connection').textContent === 'CONNECTED');
     assert.equal(await page.evaluate(() => window.serialSignals.dataTerminalReady), true);

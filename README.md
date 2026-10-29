@@ -65,6 +65,8 @@ C3 build/flash examples:
 
 ## Web app
 
+The GitHub Pages deployment target is [shadowroot.github.io/rc-limit](https://shadowroot.github.io/rc-limit/). See [Pages setup](docs/releases.md#github-pages-continuous-deployment) for first-time activation.
+
 No frontend build or dependencies:
 
 ```sh
