@@ -1,6 +1,6 @@
 # USB firmware updates
 
-Open **Update firmware over USB** below the configuration controls in the web/Electron app. Download the firmware ZIP for your exact board from [RC Limit releases](https://github.com/shadowroot/rc-limit/releases), or from a successful Actions run. Extract the Actions artifact's outer ZIP to get the inner `rc-limit-BOARD.zip`; select that inner ZIP in the updater. Packages created before the update manifest was added are rejected; build/package a fresh bundle instead.
+Open **Update firmware over USB** below the configuration controls. On Pages or the standalone stable web ZIP, choose your exact board and click **Use bundled stable firmware** to load the included stable package, or use its download link. The displayed tag identifies the release. Manual ZIP selection remains available in the web/Electron app. Download the firmware ZIP for your exact board from [RC Limit releases](https://github.com/shadowroot/rc-limit/releases), or from a successful Actions run. Extract the Actions artifact's outer ZIP to get the inner `rc-limit-BOARD.zip`; select that inner ZIP in the updater. Packages created before the update manifest was added are rejected; build/package a fresh bundle instead.
 
 1. Export your configuration profile, disarm, and disconnect the configuration session. Close other serial monitors/controllers.
 2. Disconnect motor power. Select the physical board model and its matching firmware ZIP.
