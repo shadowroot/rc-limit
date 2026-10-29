@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'">
+  <title>RC Limit · Workshop</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header><a class="brand" href="#"><span class="mark">↔</span> RC LIMIT <small>WORKSHOP / 01</small></a><span class="tag">PICO + ESP32</span></header>
+  <main>
+    <section class="intro"><div><p class="eyebrow">RECEIVER → LIMITER → ESC</p><h1>A little less throttle.<br>A lot more control.</h1><p>Set the envelope for your bidirectional ESC. Keep the radio in control.</p></div>
+      <aside><span class="status-dot" id="dot"></span><strong id="connection">OFFLINE</strong><p id="board">USB serial: Pico + ESP32<br>Bluetooth serial: ESP32</p><p id="transports">Pair ESP32 as RC-Limiter for Bluetooth SPP.</p><button id="connect" class="primary">Connect USB / Bluetooth serial ↗</button><button id="disconnect" disabled>Disconnect</button></aside>
+    </section>
+    <section class="telemetry" aria-label="Live board telemetry">
+      <div><span>RECEIVER PULSE</span><strong id="input">— <small>µs</small></strong><meter id="input-meter" min="800" max="2200" value="1500" aria-label="Receiver pulse"></meter></div>
+      <div><span>ESC OUTPUT</span><strong id="output">— <small>µs</small></strong><meter id="output-meter" min="800" max="2200" value="1500" aria-label="ESC pulse"></meter></div>
+      <div><span>RUN STATE</span><strong id="armed">UNKNOWN</strong><p id="signal">No receiver telemetry</p></div>
+      <div><span>BOARD SETTINGS</span><strong id="saved">—</strong><p id="revision">Read settings after connecting</p></div>
+    </section>
+    <div class="workspace"><nav><p class="eyebrow">CONFIGURATION</p><a href="#limits">01 / Throttle envelope</a><a href="#pins">02 / Pin mapping</a><a href="#receiver">03 / Receiver calibration</a><a href="#esc">04 / ESC calibration</a><hr><p>Up to four PWM mappings.<br>50 Hz ESC outputs.<br>Independent limits per mapping.</p><p class="warning">Remove the propeller or unload the drivetrain before changing settings.</p></nav>
+      <div class="settings"><section class="card"><h2>Receiver → ESC mappings</h2><div class="mapping-actions"><label>Selected mapping<select id="mapping-select" aria-label="Selected mapping"></select></label><button id="add-mapping">+ Add mapping</button><button id="remove-mapping">Remove mapping</button></div><p class="hint">Edit each mapping below, then Apply all. Inputs may be shared; each output must be unique. Losing any input disarms all outputs.</p><div id="mapping-summary"></div></section><form id="config-form">
+        <section class="card" id="limits"><div class="card-heading"><span>01</span><div><h2>Throttle envelope</h2><p>Start low. Verify neutral before arming.</p></div></div><div class="fields" data-group="limits"></div><p class="hint">Scale uses the full stick travel within your limit. Clamp keeps the original response, then caps it. A percentage limits the signal command; it does not measure speed or power.</p></section>
+        <section class="card" id="pins"><div class="card-heading"><span>02</span><div><h2>Pin mapping</h2><p>Use GPIO numbers, not physical header positions.</p></div></div><div class="fields" data-group="pins"></div><p class="hint" id="pin-hint">Pico default: GP4 → GP5. ESP32 default: GPIO27 → GPIO25. The board validates its pin allowlist.</p></section>
+        <section class="card" id="receiver"><div class="card-heading"><span>03</span><div><h2>Receiver calibration</h2><p>Read the pulse at each stick endpoint and neutral.</p></div></div><div class="fields" data-group="receiver"></div></section>
+        <section class="card" id="esc"><div class="card-heading"><span>04</span><div><h2>ESC calibration</h2><p>Use the stop pulse specified by your ESC.</p></div></div><div class="fields" data-group="esc"></div><p class="hint">Bidirectional default: 1000 / 1500 / 2000 µs. Signal loss disarms and sends the configured neutral. Configure and test your receiver's radio-loss failsafe too.</p></section>
+      </form><div class="toolbar"><button id="read" data-device>Read board</button><button id="apply" class="primary" data-device>Apply all mappings</button><button id="save" data-device>Save to flash</button><button id="export">Export JSON</button><label class="file-button">Import JSON<input id="import" type="file" accept="application/json,.json"></label></div>
+      <div class="runbar"><div><strong>Ready at neutral?</strong><p>Hold every mapped input at stop for 1 second, then arm all.</p></div><button id="arm" data-device>ARM ALL</button><button id="disarm" class="danger" data-device>DISARM ALL</button></div>
+      <p id="message" role="status" aria-live="polite">Settings shown are defaults until read from a board. Disconnection is not a confirmed stop.</p></div>
+    </div>
+  </main>
+  <footer><span>RC LIMIT / OPEN HARDWARE WORKBENCH</span><span>3.3 V GPIO · level-shift a 5 V receiver signal</span></footer>
+  <dialog id="port-dialog"><h2>Select your board</h2><p>Choose the serial port connected to the limiter.</p><div id="port-list"></div><button id="cancel-port">Cancel</button></dialog>
+  <script type="module" src="app.mjs"></script>
+</body></html>

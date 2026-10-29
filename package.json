@@ -1,0 +1,17 @@
+{
+  "name": "rc-limit-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RC ESC limiter configuration desktop shell",
+  "license": "MIT",
+  "author": "RC Limit contributors",
+  "engines": { "node": ">=22.12.0" },
+  "main": "electron/main.cjs",
+  "scripts": { "postinstall": "node node_modules/electron/install.js", "start": "electron .", "package": "electron-builder --dir", "test": "node tests/protocol.test.mjs" },
+  "devDependencies": { "electron": "43.8.4", "electron-builder": "26.18.0" },
+  "build": {
+    "appId": "dev.rclimit.desktop", "productName": "RC Limit",
+    "directories": { "output": "build/desktop" },
+    "files": ["web/**/*", "electron/main.cjs", "electron/preload.cjs", "package.json"]
+  }
+}

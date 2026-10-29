@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "mappings": [
+    {
+      "input_pin": 4,
+      "output_pin": 5,
+      "input_min": 1000,
+      "input_neutral": 1500,
+      "input_max": 2000,
+      "output_min": 1000,
+      "output_neutral": 1500,
+      "output_max": 2000,
+      "forward_percent": 30,
+      "reverse_percent": 30,
+      "bidirectional": 1,
+      "scale": 1,
+      "invert": 0,
+      "deadband": 30,
+      "timeout_ms": 100
+    },
+    {
+      "input_pin": 4,
+      "output_pin": 7,
+      "input_min": 1000,
+      "input_neutral": 1500,
+      "input_max": 2000,
+      "output_min": 1000,
+      "output_neutral": 1500,
+      "output_max": 2000,
+      "forward_percent": 10,
+      "reverse_percent": 10,
+      "bidirectional": 1,
+      "scale": 1,
+      "invert": 0,
+      "deadband": 30,
+      "timeout_ms": 100
+    }
+  ]
+}
