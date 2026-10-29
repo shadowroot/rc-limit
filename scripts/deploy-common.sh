@@ -25,3 +25,13 @@ rc_firmware_ready() {
   rc_need "$RC_CLI"
   [[ "$RC_DRY_RUN" == 1 || -f "$RC_CONFIG" ]] || rc_die "Run scripts/setup-firmware.sh first (Arduino configuration missing: $RC_CONFIG)."
 }
+rc_pio_binary() {
+  if [[ -n "${RC_LIMIT_PIO:-}" ]]; then RC_PIO=$RC_LIMIT_PIO
+  elif [[ -x "$RC_ROOT/.tools/pio-venv/bin/pio" ]]; then RC_PIO="$RC_ROOT/.tools/pio-venv/bin/pio"
+  else RC_PIO=pio; fi
+  rc_need "$RC_PIO"
+}
+rc_pio() {
+  rc_run mkdir -p "$RC_ROOT/.tools/tmp"
+  rc_run env "PLATFORMIO_CORE_DIR=${PLATFORMIO_CORE_DIR:-$RC_ROOT/.tools/platformio}" "TMPDIR=${RC_LIMIT_PIO_TMP:-$RC_ROOT/.tools/tmp}" "$RC_PIO" "$@"
+}

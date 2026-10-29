@@ -20,7 +20,7 @@ class DeployTests(unittest.TestCase):
 import json, os, pathlib, sys
 with open(os.environ['RC_TEST_LOG'], 'a') as file:
     file.write(json.dumps(sys.argv[1:])+'\\n')
-if 'compile' in sys.argv and os.environ.get('RC_TEST_FAIL_COMPILE'):
+if ('compile' in sys.argv or 'run' in sys.argv) and os.environ.get('RC_TEST_FAIL_COMPILE'):
     sys.exit(7)
 if 'get-state' in sys.argv:
     print('device')
@@ -30,7 +30,7 @@ if 'get-state' in sys.argv:
         self.config.write_text("{}")
         self.env = {**os.environ, "RC_LIMIT_ARDUINO_CLI": str(self.tool),
                     "RC_LIMIT_ARDUINO_CONFIG": str(self.config), "RC_LIMIT_ADB": str(self.tool),
-                    "RC_TEST_LOG": str(self.log)}
+                    "RC_LIMIT_PIO": str(self.tool), "RC_TEST_LOG": str(self.log)}
 
     def run_script(self, *args, script="deploy.sh", **env):
         return subprocess.run(["bash", str(ROOT / "scripts" / script), *args],
@@ -49,14 +49,14 @@ if 'get-state' in sys.argv:
         for target, fqbn in [("esp32c3", "esp32:esp32:esp32c3:CDCOnBoot=cdc"),
                              ("esp32c3-devkit", "esp32:esp32:esp32c3:CDCOnBoot=default")]:
             self.log.unlink(missing_ok=True)
-            result = self.run_script(target, "--port", "/dev/test-c3")
+            result = self.run_script(target, "--arduino", "--port", "/dev/test-c3")
             self.assertEqual(result.returncode, 0, result.stderr)
             compile_call, upload_call = self.calls()
             self.assertIn(fqbn, compile_call)
             self.assertIn(fqbn, upload_call)
 
     def test_flash_builds_then_uploads_to_exact_port(self):
-        result = self.run_script("esp32", "--port", "/dev/serial/by-id/board with spaces")
+        result = self.run_script("esp32", "--arduino", "--port", "/dev/serial/by-id/board with spaces")
         self.assertEqual(result.returncode, 0, result.stderr)
         compile_call, upload_call = self.calls()
         self.assertIn("compile", compile_call)
@@ -72,9 +72,22 @@ if 'get-state' in sys.argv:
         self.assertEqual(len(self.calls()), 1)
         self.assertNotIn("upload", self.calls()[0])
 
+    def test_native_failed_build_never_uploads(self):
+        result = self.run_script("esp32c3", "--port", "/dev/test", RC_TEST_FAIL_COMPILE="1")
+        self.assertEqual(result.returncode, 7, result.stderr)
+        self.assertEqual(self.calls(), [["run", "--environment", "esp32c3"]])
+
+    def test_native_and_pico_platformio_target_routing(self):
+        for target in ["pico", "esp32", "esp32c3", "esp32c3-devkit"]:
+            result = self.run_script("pio", target, "--build-only", "--dry-run")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("--environment " + target, result.stdout)
+            self.assertNotIn("--target upload", result.stdout)
+        self.assertEqual(self.calls(), [])
+
     def test_dry_run_never_invokes_tools(self):
         for args in [("pico", "--port", "/dev/test"), ("android", "--serial", "phone", "--launch"),
-                     ("web", "--port", "8090"), ("desktop", "--package")]:
+                     ("web", "--port", "8090"), ("pio", "pico", "--build-only"), ("esp32c3", "--port", "/dev/test"), ("desktop", "--package")]:
             result = self.run_script(*args, "--dry-run")
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("Dry run", result.stdout)

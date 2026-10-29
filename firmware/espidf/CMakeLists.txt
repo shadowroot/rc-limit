@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+set(SDKCONFIG_DEFAULTS "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.defaults")
+if(DEFINED RC_USB_NATIVE)
+    add_compile_definitions(RC_USB_NATIVE=${RC_USB_NATIVE})
+endif()
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+project(rc_limit)

@@ -6,6 +6,8 @@ Configure it with the local **web app**, the **Electron desktop app**, or the **
 
 This limits the ESC command, not measured motor speed, current, torque, or power. A 30% limit means 30% of the calibrated pulse excursion from stop. It is a bench prototype, with hardware commissioning still required.
 
+Firmware uses **PlatformIO**, with **native ESP-IDF** on ESP32/C3 and Arduino-Pico on Pico. [CI and releases](docs/releases.md) provide firmware, Android debug, Linux desktop and web downloads.
+
 ## Start here
 
 Use the [deployment scripts](docs/deploy.md) for setup, board flashing, Android installation, and starting the web/Electron app. Run `./scripts/deploy.sh --help` for all targets; every command supports `--dry-run`.
@@ -55,7 +57,7 @@ All these GPIOs use **3.3 V logic**. For a confirmed 5 V receiver PWM signal, us
 C3 build/flash examples:
 
 ```sh
-./scripts/setup-firmware.sh esp32c3
+./scripts/setup-pio.sh esp32c3
 ./scripts/deploy.sh esp32c3 --port /dev/ttyACM0
 # Official C3 DevKitM-1 onboard USB-to-UART connector:
 ./scripts/deploy.sh esp32c3-devkit --port /dev/ttyUSB0

@@ -5,6 +5,7 @@ set -- "${RC_ARGS[@]}"
 usage() {
   cat <<'HELP'
 Usage (run from any directory):
+  scripts/deploy.sh pio TARGET --build-only|--port PORT
   scripts/deploy.sh ports
   scripts/deploy.sh pico --port /dev/ttyACM0
   scripts/deploy.sh pico --mount /media/USER/RPI-RP2
@@ -18,7 +19,9 @@ Usage (run from any directory):
   scripts/deploy.sh desktop [--install] [--package]
 
 Add --dry-run anywhere to print commands without building, flashing or installing.
-Firmware setup: scripts/setup-firmware.sh [pico|esp32|esp32c3|all]
+ESP32/C3 setup: scripts/setup-pio.sh [esp32|esp32c3|esp32c3-devkit|all]
+Legacy Arduino fallback: add --arduino to ESP32/C3 commands.
+Pico Arduino setup: scripts/setup-firmware.sh pico
 Disconnect motor power before flashing. Board/device selection is always explicit.
 See docs/deploy.md for prerequisites and environment overrides.
 HELP
@@ -28,11 +31,25 @@ action=$1; shift
 cd "$RC_ROOT"
 case "$action" in
   --help|-h|help) usage ;;
+  pio)
+    forwarded=("$@");if [[ "$RC_DRY_RUN" == 1 ]];then forwarded+=(--dry-run);fi
+    "$RC_ROOT/scripts/deploy-pio.sh" "${forwarded[@]}"
+    ;;
   ports)
-    [[ $# == 0 ]] || rc_die 'ports takes no options.'
-    rc_firmware_ready; rc_arduino board list
+    if [[ $# == 1 && $1 == --arduino ]];then rc_firmware_ready;rc_arduino board list
+    else [[ $# == 0 ]] || rc_die 'ports accepts only --arduino.';rc_pio_binary;rc_pio device list;fi
     ;;
   pico|esp32|esp32c3|esp32c3-devkit)
+    use_arduino=0;forwarded=()
+    for arg in "$@";do
+      if [[ "$arg" == --arduino ]];then use_arduino=1;else forwarded+=("$arg");fi
+    done
+    set -- "${forwarded[@]}"
+    if [[ "$action" != pico && "$use_arduino" == 0 ]];then
+      if [[ "$RC_DRY_RUN" == 1 ]];then forwarded+=(--dry-run);fi
+      "$RC_ROOT/scripts/deploy-pio.sh" "$action" "${forwarded[@]}"
+      exit
+    fi
     port=; mount=; build_only=0
     while [[ $# -gt 0 ]]; do
       case "$1" in

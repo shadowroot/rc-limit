@@ -2,7 +2,29 @@
 
 For automated setup and deployment, use [the deployment scripts](deploy.md). The commands below describe the underlying tools.
 
-## Firmware
+## PlatformIO and native ESP-IDF
+
+The preferred build is defined in `platformio.ini`: PlatformIO **6.1.18**, Espressif platform **6.12.0**, native **ESP-IDF 5.5.0** for all ESP32/C3 targets. ESP builds use Espressif GPIO, LEDC, USB Serial/JTAG or UART, Bluedroid SPP/GATT and NVS APIs directly. They do not link Arduino. Pico retains Arduino-Pico **4.4.3** and ArduinoJson **7.4.2**, using community Raspberry Pi platform revision `c7502925e3b08af70e9f924d54ab9d00a7e64781` and its compatible 4.0.1 toolchain. `firmware/pico/main.cpp` includes the same sketch used by Arduino CLI.
+
+```sh
+./scripts/setup-pio.sh all
+./scripts/deploy.sh pio pico --build-only
+./scripts/deploy.sh esp32 --build-only
+./scripts/deploy.sh esp32c3 --build-only
+./scripts/deploy.sh esp32c3-devkit --build-only
+bash scripts/check-idf.sh
+```
+
+Outputs are copied to `build/pio/TARGET/`. `esp32c3` selects the Super Mini native USB Serial/JTAG CDC interface; `esp32c3-devkit` selects UART0 through the DevKitM-1 USB bridge. Both use BLE NUS. Original ESP32 uses UART0 and Bluetooth Classic SPP. USB UART remains 115200 baud. Protocol version 2, apps and pin restrictions are shared with the Arduino implementation.
+
+Native sources live in `firmware/espidf/`. Standalone ESP-IDF 5.5.0 users may also build there: run `idf.py set-target esp32` or `idf.py set-target esp32c3`, then `idf.py -DRC_USB_NATIVE=0 build` (UART) or `idf.py -DRC_USB_NATIVE=1 build` (C3 native USB). PlatformIO is the reproducible CI entry point. Each target needs its own build/config directory when switching SDK targets.
+
+The native partition table provides one 3 MiB factory application and preserves the old Arduino NVS offset/size. There is no OTA update implementation. Native settings use NVS namespace `rc_limit`, key `mappings`; if absent, valid legacy Arduino EEPROM data is imported without erasing its blob. Export profiles before upgrading. After native saves, downgrading to Arduino reads its older copy; import the desired profile explicitly. Physical flash migration remains unverified.
+
+Native serial/radio transmit workers use bounded queues so link congestion does not block the control task. Overflow can discard commands/replies; clients must handle timeouts. The control task uses a two-second task watchdog; this is not an independent output interlock. Hardware waveform and Bluetooth tests remain necessary.
+
+## Arduino fallback
+
 
 Use Arduino CLI or Arduino IDE. This sketch is compiled against these pinned versions:
 

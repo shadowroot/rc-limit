@@ -13,5 +13,5 @@ node --check web/ble.mjs
 node --check web/boards.mjs
 node --check electron/main.cjs
 node --check electron/preload.cjs
-bash -n scripts/deploy-common.sh scripts/setup-firmware.sh scripts/deploy.sh
-python3 -m unittest discover -s tests -p 'test_deploy.py' -v
+bash -n scripts/deploy-common.sh scripts/setup-firmware.sh scripts/deploy.sh scripts/setup-pio.sh scripts/deploy-pio.sh scripts/check-idf.sh
+python3 -m unittest discover -s tests -p 'test_*.py' -v

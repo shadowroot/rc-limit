@@ -1,10 +1,31 @@
 # Deployment scripts
 
+## Preferred PlatformIO setup
+
+ESP32 and C3 deployment now defaults to native ESP-IDF. Install Python 3 with venv/pip, Git and build tools, then:
+
+```sh
+./scripts/setup-pio.sh all
+./scripts/deploy.sh ports
+./scripts/deploy.sh esp32 --port /dev/ttyUSB0
+./scripts/deploy.sh esp32c3 --port /dev/ttyACM0
+./scripts/deploy.sh esp32c3-devkit --port /dev/ttyUSB0
+./scripts/deploy.sh pio pico --mount /media/USER/RPI-RP2
+# Build without selecting hardware:
+./scripts/deploy.sh pio pico --build-only
+```
+
+Setup creates `.tools/pio-venv` and `.tools/platformio`; versions are pinned in `scripts/requirements-pio.txt` and `platformio.ini`. Override `RC_LIMIT_PIO` with an existing `pio` executable, `PLATFORMIO_CORE_DIR` with a package/cache directory, and `RC_LIMIT_PIO_TMP` with a temporary directory. `--dry-run` executes no commands or filesystem changes. Firmware outputs are copied to `build/pio/TARGET`.
+
+The Arduino commands below remain an optional fallback: add `--arduino` to ESP32/C3 `deploy.sh` invocations after `setup-firmware.sh`. Pico's direct `deploy.sh pico` command still uses Arduino CLI; `deploy.sh pio pico` uses PlatformIO. `ports --arduino` lists devices through Arduino CLI. Do not erase flash on upgrade; export profiles first and read [native migration details](build.md).
+
+See [CI and release downloads](releases.md) for prebuilt firmware and app artifacts.
+
 The scripts run on Linux/macOS with Bash. Windows users can use Git Bash with the Windows versions of Arduino CLI, Java, adb, Node and npm. Device names must be visible to those tools; Windows USB devices are not automatically available inside WSL.
 
 Run these commands from the project root. The scripts also work when invoked by absolute path from another directory. File arguments such as `--apk` resolve relative to the project root.
 
-## Firmware setup (once per checkout)
+## Optional Arduino CLI setup (once per checkout)
 
 Install Arduino CLI and Python 3, then:
 
@@ -34,7 +55,7 @@ Disconnect motor power, close serial monitors and configuration apps, and identi
 ./scripts/deploy.sh esp32 --port COM5
 ```
 
-Each flash command first compiles the current source, stops on build failure, and uploads those newly generated artifacts to the selected port. No port is selected automatically. Pico, original ESP32, C3 Super Mini and official C3 DevKitM-1 targets are configured. The two C3 targets differ in USB CDC On Boot so the configuration stream uses the selected board connector. After upload, read back the settings before restoring motor power; arming remains an explicit app action.
+Each flash command first compiles the current source, stops on build failure, and uploads those newly generated artifacts to the selected port. No port is selected automatically. Pico, original ESP32, C3 Super Mini and official C3 DevKitM-1 targets are configured. The two C3 native targets select USB Serial/JTAG versus UART0 so the configuration stream uses the selected board connector. The Arduino fallback uses the equivalent USB CDC On Boot option. After upload, read back the settings before restoring motor power; arming remains an explicit app action.
 
 For a fresh Pico, hold BOOTSEL while connecting USB, then release it. Pass the mounted **RPI-RP2 volume**, not a raw block device:
 
@@ -55,7 +76,7 @@ To compile without touching hardware:
 ./scripts/deploy.sh esp32c3-devkit --build-only
 ```
 
-Artifacts go to `build/pico/`, `build/esp32/`, `build/esp32c3/` or `build/esp32c3-devkit/`; compiler working files go to the corresponding `build/work-TARGET/`.
+Native/PlatformIO artifacts go to `build/pio/TARGET/`, with compiler files in `.pio/build/TARGET/`. Arduino CLI artifacts go to `build/TARGET/`, with compiler files in `build/work-TARGET/`.
 
 ## Install the native Android app
 

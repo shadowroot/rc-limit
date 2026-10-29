@@ -36,7 +36,8 @@ Install only the tools needed for the work being done. Use the pinned versions i
 | Area | Prerequisites |
 |---|---|
 | Checks and scripts | Bash, Python 3, g++ with C++11 and address/undefined-behavior sanitizer support, Node.js |
-| Firmware | Arduino CLI; Arduino-Pico **4.4.3** (Earle Philhower core, not Arduino Mbed); Espressif ESP32 core **2.0.17**; ArduinoJson **7.4.2** |
+| Preferred firmware | Python 3 with venv/pip, Git, PlatformIO **6.1.18**, Espressif platform **6.12.0**, native ESP-IDF **5.5.0**; pinned Pico community platform with Arduino-Pico **4.4.3** and ArduinoJson **7.4.2** |
+| Arduino fallback | Arduino CLI; Arduino-Pico **4.4.3** (Earle Philhower core, not Arduino Mbed); Espressif ESP32 core **2.0.17**; ArduinoJson **7.4.2** |
 | Web GUI | Python 3 for local serving; desktop browser supporting Web Serial, such as Chrome/Edge; localhost or HTTPS |
 | Electron | Node.js **22.12+**, npm; Electron **43.8.4** and electron-builder **26.18.0** from `package-lock.json` |
 | Native Android | JDK **17 or 21**; Android SDK Platform **35**, Build Tools **35.0.0**, platform-tools/adb; Gradle wrapper **8.9**, Android Gradle Plugin **8.7.3** |
@@ -50,7 +51,9 @@ For physical testing, have the exact board, receiver and ESC manuals; data-capab
 ## Source layout
 
 - `firmware/rc_limiter/limiter.h`: portable mapping and arming/failsafe logic.
-- `firmware/rc_limiter/rc_limiter.ino`: hardware capture/output, persistence and serial/Bluetooth commands.
+- `firmware/espidf/`: native Espressif GPIO/LEDC, UART/USB, Bluedroid SPP/BLE, cJSON and NVS implementation.
+- `platformio.ini`: pinned builds for all four boards; ESP targets use `framework = espidf`.
+- `firmware/rc_limiter/rc_limiter.ino`: Arduino fallback/Pico hardware capture/output, persistence and serial/Bluetooth commands.
 - `web/`: shared browser/Electron GUI, BLE transport and protocol client. `web/hardware/boards.json` is shared with Android assets; keep pin layouts and guidance consistent.
 - `electron/`: sandboxed desktop shell, preload bridge and device chooser.
 - `android/`: native Java Android app, USB serial and Bluetooth transports.
@@ -66,7 +69,11 @@ Run from the project root:
 
 ```sh
 bash scripts/check.sh
-./scripts/setup-firmware.sh all
+./scripts/setup-pio.sh all
+./scripts/deploy.sh pio pico --build-only
+bash scripts/check-idf.sh
+# Optional Arduino CLI fallback:
+./scripts/setup-firmware.sh pico
 ./scripts/deploy.sh pico --build-only
 ./scripts/deploy.sh esp32 --build-only
 ./scripts/deploy.sh esp32c3 --build-only
@@ -101,3 +108,7 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 - Update `docs/protocol.md` when commands, fields or mappings change; update `docs/build.md` and `docs/deploy.md` when prerequisites or deployment change.
 - Keep `docs/validation.md` factual: record checks actually completed and physical tests still outstanding. Do not claim physical validation based on a successful build.
 - For this documentation-only file, review consistency with source/manifests; no firmware rebuild or device deployment is needed.
+
+## CI and releases
+
+`.github/workflows/build.yml` runs checks and all four PlatformIO builds, Android debug assembly, Linux Electron packaging and web archiving. `v*` tag pushes create draft releases only after all jobs succeed. Packages must contain board identity, source commit, checksums and flashing instructions; never publish an application-only ESP binary as a complete fresh-device image. No hardware is flashed by CI. See `docs/releases.md`.

@@ -47,3 +47,11 @@ google-services.json
 
 # Android Profiling
 *.hprof
+.pio/
+sdkconfig
+sdkconfig.old
+sdkconfig.*
+!sdkconfig.defaults
+!sdkconfig.defaults.*
+firmware/espidf/managed_components/
+firmware/espidf/dependencies.lock
