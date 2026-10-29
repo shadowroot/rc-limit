@@ -17,7 +17,8 @@
     "build:web": "node scripts/build-web.mjs",
     "prestart": "npm run build:web",
     "prepackage": "npm run build:web",
-    "package:win": "npm run build:web && electron-builder --win nsis portable --x64 --publish never"
+    "package:win": "npm run build:web && electron-builder --win nsis portable --x64 --publish never",
+    "package:web": "npm run build:web && python3 scripts/package-web.py"
   },
   "devDependencies": {
     "electron": "43.8.4",

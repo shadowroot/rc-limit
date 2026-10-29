@@ -5,6 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
+const webRoot = process.env.RC_LIMIT_WEB_ROOT || path.join(root, 'web');
 async function main() {
   const server = http.createServer(async (req, res) => {
     const pathname = new URL(req.url, 'http://localhost').pathname;
@@ -13,7 +14,7 @@ async function main() {
     if (!/^(?:[\w-]+\.(?:html|css|mjs)|dist\/[\w.-]+|hardware\/boards.json)$/.test(name)) { res.writeHead(404).end();return; }
     try {
       res.setHeader('Content-Type', name.endsWith('.mjs') ? 'text/javascript' : name.endsWith('.json') ? 'application/json' : name.endsWith('.css') ? 'text/css' : 'text/html');
-      res.end(await fs.readFile(path.join(root, 'web', name)));
+      res.end(await fs.readFile(path.join(webRoot, name)));
     } catch { res.writeHead(404).end(); }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
