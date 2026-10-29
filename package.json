@@ -16,7 +16,8 @@
     "test": "node tests/protocol.test.mjs",
     "build:web": "node scripts/build-web.mjs",
     "prestart": "npm run build:web",
-    "prepackage": "npm run build:web"
+    "prepackage": "npm run build:web",
+    "package:win": "npm run build:web && electron-builder --win nsis portable --x64 --publish never"
   },
   "devDependencies": {
     "electron": "43.8.4",
@@ -37,6 +38,34 @@
       "electron/main.cjs",
       "electron/preload.cjs",
       "package.json"
-    ]
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "executableName": "rc-limit-desktop",
+      "signExecutable": false
+    },
+    "nsis": {
+      "artifactName": "rc-limit-desktop-${version}-windows-${arch}-setup.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "rc-limit-desktop-${version}-windows-${arch}-portable.${ext}"
+    }
   }
 }

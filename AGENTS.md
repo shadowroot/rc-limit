@@ -113,4 +113,4 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 
 ## CI and releases
 
-`.github/workflows/build.yml` runs checks and all four PlatformIO builds, Android debug assembly, Linux Electron packaging and web archiving. `v*` tag pushes create draft releases only after all jobs succeed. Packages must contain board identity, source commit, checksums and flashing instructions; never publish an application-only ESP binary as a complete fresh-device image. No hardware is flashed by CI. See `docs/releases.md`.
+`.github/workflows/build.yml` runs checks and all four PlatformIO builds, Android debug assembly, Linux Electron packaging, Windows x64 NSIS/portable EXEs and web archiving. `v*` tag pushes create draft releases only after all jobs succeed. Packages must contain board identity, source commit, checksums and flashing instructions; never publish an application-only ESP binary as a complete fresh-device image. No hardware is flashed by CI. See `docs/releases.md`.

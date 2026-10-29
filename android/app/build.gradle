@@ -2,6 +2,7 @@ plugins { id 'com.android.application' }
 android {
     namespace 'dev.rclimit'
     compileSdk 35
+    buildToolsVersion '35.0.0'
     defaultConfig {
         applicationId 'dev.rclimit'
         minSdk 26

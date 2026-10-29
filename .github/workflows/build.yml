@@ -102,11 +102,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run package
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Archive Linux desktop and browser app
         run: |
           mkdir -p build/releases
           tar -czf build/releases/rc-limit-desktop-linux-x64.tar.gz -C build/desktop linux-unpacked
-          zip -r build/releases/rc-limit-web.zip web
+          python3 -m zipfile -c build/releases/rc-limit-web.zip web
       - uses: actions/upload-artifact@v4
         with:
           name: app-desktop-web
@@ -114,9 +117,38 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  windows:
+    needs: checks
+    runs-on: windows-2022
+    timeout-minutes: 25
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Build Windows x64 installer and portable EXE
+        run: npm run package:win
+      - name: Collect Windows downloads
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/releases | Out-Null
+          $files = @(Get-ChildItem build/desktop/rc-limit-desktop-*-windows-x64-*.exe)
+          if ($files.Count -ne 2) { throw "Expected installer and portable EXE; found $($files.Count)" }
+          Copy-Item $files.FullName build/releases/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-windows-x64
+          path: build/releases/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [checks, firmware, android, desktop]
+    needs: [checks, firmware, android, desktop, windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

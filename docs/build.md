@@ -81,6 +81,8 @@ For Electron, use Node **22.12+**, npm and an OS supported by Electron 43:
 npm ci
 npm start
 npm run package
+# Windows installer and portable EXE:
+npm run package:win
 ```
 
 `npm ci` downloads the Electron executable through the project's postinstall script. If lifecycle scripts were disabled, run `node node_modules/electron/install.js` explicitly. A first package run may download packaging tools. Packaging produces an unpacked application for the build host's OS, not a signed installer. Native serial permissions remain OS controlled. See [Electron's serial device guide](https://www.electronjs.org/docs/latest/tutorial/devices#web-serial-api).

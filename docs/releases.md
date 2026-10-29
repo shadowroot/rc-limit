@@ -1,6 +1,6 @@
 # CI builds and releases
 
-[GitHub Actions](https://github.com/shadowroot/rc-limit/actions) runs `.github/workflows/build.yml` for pushes to `main`, pull requests, manual dispatch and `v*` tags. Checks must pass before builds start. Build jobs are independent, so a failure on one board does not hide diagnostics for another.
+[GitHub Actions](https://github.com/shadowroot/rc-limit/actions) runs `.github/workflows/build.yml` for pushes to `main`/`feature/**`, pull requests, manual dispatch and `v*` tags. Checks must pass before builds start. Build jobs are independent, so a failure on one board does not hide diagnostics for another.
 
 Downloads are available under a successful run's **Artifacts** section (GitHub login required). Artifacts are kept for 14 days, subject to repository retention policy:
 
@@ -12,10 +12,17 @@ Downloads are available under a successful run's **Artifacts** section (GitHub l
 | `firmware-esp32c3-devkit` | C3 DevKitM-1 USB-UART + BLE firmware components |
 | `app-android` | Native Android **debug** APK for sideload testing |
 | `app-desktop-web` | Linux x64 Electron directory archive and browser web ZIP |
+| `app-windows-x64` | Windows x64 NSIS installer EXE and standalone portable EXE |
 
 Firmware ZIPs contain the exact source commit and inner `SHA256SUMS`. Original ESP32 bootloader is flashed at `0x1000`; C3 at `0x0`. Both use partitions at `0x8000`, application at `0x10000`. Follow the included README using all components. Pico uses BOOTSEL copy. Motor power must be disconnected. A successful build is not physical commissioning.
 
-Android APKs use disposable runner debug keys: different runs may require uninstalling the prior APK before installing (which clears its app data). These are not signed production Android releases. Electron is an unpacked Linux x64 app; extract the whole archive, preserve permissions and run `linux-unpacked/rc-limit-desktop`. Production installer signing, other desktop platforms and Android release signing are not configured. Extract `rc-limit-web.zip` and serve its `web/` directory on localhost or HTTPS for browser device APIs.
+Android APKs use disposable runner debug keys: different runs may require uninstalling the prior APK before installing (which clears its app data). These are not signed production Android releases. Electron is an unpacked Linux x64 app; extract the whole archive, preserve permissions and run `linux-unpacked/rc-limit-desktop`. Windows downloads are `rc-limit-desktop-VERSION-windows-x64-setup.exe` (per-user installer) and `rc-limit-desktop-VERSION-windows-x64-portable.exe` (no installation). They are not Authenticode-signed; GPG signatures apply to source commits/tags, not Windows executables. Desktop automatic application updates and Android release signing are not configured. Extract `rc-limit-web.zip` and serve its `web/` directory on localhost or HTTPS for browser device APIs.
+
+## Windows builds
+
+The `windows` job runs on `windows-2022`, installs locked npm dependencies with Node 22, builds the firmware-updater bundle and runs `npm run package:win`. Only the two completed EXE files are uploaded as `app-windows-x64`; a missing installer or portable build fails the job. Version tags attach both EXEs to the same draft release/checksum list as the other artifacts. `--publish never` prevents electron-builder from independently publishing releases. No signing secrets are required for these unsigned builds.
+
+To build locally on Windows, install Node 22.12+ and run `npm ci`, then `npm run package:win`. Outputs are under `build/desktop/`. The installer runs per-user without elevation and allows selecting an install directory. Both packages include the web UI, USB/Bluetooth configuration and USB firmware updater. Platform/browser-driver behavior still needs testing on Windows hardware.
 
 ## Versioned release
 
@@ -26,7 +33,7 @@ git tag -s v0.2.0 -m 'RC Limit v0.2.0'
 git push origin v0.2.0
 ```
 
-Choose an unused version. Pushing a `v*` tag rebuilds that exact commit. Once checks, all four board builds and both app jobs pass, CI creates a **draft** [GitHub Release](https://github.com/shadowroot/rc-limit/releases) with firmware ZIPs, apps and outer `SHA256SUMS`. Review its assets/notes and publish it in GitHub. A pre-existing release is reused on reruns and matching asset names are replaced. No tag or public release is created by a regular main push or manual workflow run.
+Choose an unused version. Pushing a `v*` tag rebuilds that exact commit. Once checks, all four board builds and Linux, Windows and Android app jobs pass, CI creates a **draft** [GitHub Release](https://github.com/shadowroot/rc-limit/releases) with firmware ZIPs, apps and outer `SHA256SUMS`. Review its assets/notes and publish it in GitHub. A pre-existing release is reused on reruns and matching asset names are replaced. No tag or public release is created by a regular main push or manual workflow run.
 
 The release job alone has `contents: write`; checks/build jobs have read access. The built-in `GITHUB_TOKEN` is used; no personal token or signing secrets are required. Repository Actions policy must allow the referenced actions and workflow token write access. Pull requests never receive release credentials. GPG signatures belong to source commits/tags; SHA256 checksums are integrity checks, not GPG signatures on binaries.
 
