@@ -41,6 +41,7 @@ Install only the tools needed for the work being done. Use the pinned versions i
 | Arduino fallback | Arduino CLI; Arduino-Pico **4.4.3** (Earle Philhower core, not Arduino Mbed); Espressif ESP32 core **2.0.17**; ArduinoJson **7.4.2** |
 | Web GUI | Node.js **22.12+**, npm for the firmware updater bundle; Python 3 for local serving; desktop browser supporting Web Serial, such as Chrome/Edge; localhost or HTTPS |
 | Electron | Node.js **22.12+**, npm; Electron **43.8.4** and electron-builder **26.18.0** from `package-lock.json` |
+| Windows EXE packaging | Node.js **22.12+**, npm; `npm run package:win`; Windows x64 CI runner (Linux cross-builds need Wine); unsigned NSIS installer and portable EXE |
 | Native Android | JDK **17 or 21**; Android SDK Platform **35**, Build Tools **35.0.0**, platform-tools/adb; Gradle wrapper **8.9**, Android Gradle Plugin **8.7.3** |
 | Android USB driver | usb-serial-for-android **3.9.0**, resolved by Gradle |
 | Optional UI integration tests | Playwright and a compatible Chromium installation; Electron dependencies for the Electron test |
@@ -113,4 +114,4 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 
 ## CI and releases
 
-`.github/workflows/build.yml` runs checks and all four PlatformIO builds, Android debug assembly, Linux Electron packaging, Windows x64 NSIS/portable EXEs and web archiving. `v*` tag pushes create draft releases only after all jobs succeed. Packages must contain board identity, source commit, checksums and flashing instructions; never publish an application-only ESP binary as a complete fresh-device image. No hardware is flashed by CI. See `docs/releases.md`.
+`.github/workflows/build.yml` runs checks and all four PlatformIO builds, Android debug assembly, Linux Electron packaging and web archiving. `v*` tag pushes create draft releases only after all jobs succeed. Packages must contain board identity, source commit, checksums and flashing instructions; never publish an application-only ESP binary as a complete fresh-device image. No hardware is flashed by CI. See `docs/releases.md`.
