@@ -18,6 +18,10 @@ Firmware ZIPs contain the exact source commit and inner `SHA256SUMS`. Original E
 
 Android APKs use disposable runner debug keys: different runs may require uninstalling the prior APK before installing (which clears its app data). These are not signed production Android releases. Electron is an unpacked Linux x64 app; extract the whole archive, preserve permissions and run `linux-unpacked/rc-limit-desktop`. Windows downloads are `rc-limit-desktop-VERSION-windows-x64-setup.exe` (per-user installer) and `rc-limit-desktop-VERSION-windows-x64-portable.exe` (no installation). They are not Authenticode-signed; GPG signatures apply to source commits/tags, not Windows executables. Desktop automatic application updates and Android release signing are not configured. Extract `rc-limit-web.zip` and serve its `web/` directory on localhost or HTTPS for browser device APIs.
 
+## Android SDK setup
+
+The Android job overrides `android-actions/setup-android`'s default `tools platform-tools` package list. The obsolete standalone `tools` package is not needed: pinned command-line tools `12266719` supply `sdkmanager`, and the action installs `platform-tools`, `platforms;android-35` and `build-tools;35.0.0` explicitly. A verification step checks the exported SDK location, platform JAR, adb and aapt2 before Gradle runs, so SDK setup errors appear at their source.
+
 ## Windows builds
 
 The `windows` job runs on `windows-2022`, installs locked npm dependencies with Node 22, builds the firmware-updater bundle and runs `npm run package:win`. Only the two completed EXE files are uploaded as `app-windows-x64`; a missing installer or portable build fails the job. Version tags attach both EXEs to the same draft release/checksum list as the other artifacts. `--publish never` prevents electron-builder from independently publishing releases. No signing secrets are required for these unsigned builds.

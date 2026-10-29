@@ -73,9 +73,21 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Install Android build SDK
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Install Android SDK packages
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '12266719'
+          # Override the action's default obsolete 'tools' package.
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: false
+      - name: Verify Android SDK tools
+        shell: bash
+        run: |
+          test -n "${ANDROID_HOME:?Android SDK setup did not export ANDROID_HOME}"
+          command -v sdkmanager
+          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+          "$ANDROID_HOME/platform-tools/adb" version
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" version
       - name: Build native Android debug APK
         working-directory: android
         run: bash gradlew --no-daemon assembleDebug
