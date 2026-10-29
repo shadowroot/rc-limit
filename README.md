@@ -69,6 +69,8 @@ C3 build/flash examples:
 
 ## Web app
 
+**[Open the web UI on GitHub Pages](https://shadowroot.github.io/rc-limit/)** · [Deployment setup](docs/releases.md#github-pages)
+
 **[Download the prebuilt static web UI](downloads/rc-limit-web.zip?raw=true)** — includes the firmware updater, board layouts and licenses. No Node.js build is needed to use this ZIP.
 
 Extract it and run from the extracted directory:
@@ -78,7 +80,7 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory web
 # Windows: py -m http.server 8080 --bind 127.0.0.1 --directory web
 ```
 
-Open **http://localhost:8080** in desktop Chrome/Edge. GitHub provides the download; the app runs locally or on a static HTTPS host of your choice. Double-clicking `index.html` is insufficient for module/device APIs. CI also provides an `app-web` artifact and includes `rc-limit-web.zip` in versioned releases. GitHub Pages deployment has been removed.
+Open **http://localhost:8080** in desktop Chrome/Edge. GitHub provides the download; the app runs locally or on a static HTTPS host of your choice. Double-clicking `index.html` is insufficient for module/device APIs. CI also provides an `app-web` artifact and includes `rc-limit-web.zip` in versioned releases. GitHub Pages deploys the same web assets automatically from `main`.
 
 No frontend build or dependencies:
 

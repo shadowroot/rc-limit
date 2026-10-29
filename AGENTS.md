@@ -116,4 +116,4 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 
 `.github/workflows/build.yml` runs checks and all four PlatformIO builds, Android debug assembly, Linux Electron packaging and web archiving. `v*` tag pushes create draft releases only after all jobs succeed. Packages must contain board identity, source commit, checksums and flashing instructions; never publish an application-only ESP binary as a complete fresh-device image. No hardware is flashed by CI. See `docs/releases.md`.
 
-GitHub Pages deployment is removed. The independent `web` CI job verifies the README static ZIP and uploads `app-web`. Keep relative asset paths working for localhost and arbitrary static hosting paths; preserve the `/rc-limit/` integration test.
+GitHub Pages deploys `web/` through `.github/workflows/pages.yml` only from main after checks and static ZIP validation. PRs validate without deployment. Keep the README ZIP download and independent `app-web` CI artifact available. Preserve relative paths and the `/rc-limit/` integration test. Repository Pages source must be configured as GitHub Actions.

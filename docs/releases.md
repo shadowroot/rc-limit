@@ -55,8 +55,14 @@ Output: `build/releases/rc-limit-esp32c3.zip`. No device is opened by packaging.
 
 ## Static web download
 
-The README links directly to tracked `downloads/rc-limit-web.zip`. Extract the whole archive and follow its `README.txt` to serve `web/` on localhost using Python, or upload `web/` to a static HTTPS host. The archive includes the bundled firmware updater and third-party licenses. It needs neither Node.js nor a build step to use. GitHub Pages deployment and its permissions/environment are no longer configured by this project.
+The README links directly to tracked `downloads/rc-limit-web.zip`. Extract the whole archive and follow its `README.txt` to serve `web/` on localhost using Python, or upload `web/` to a static HTTPS host. The archive includes the bundled firmware updater and third-party licenses. It needs neither Node.js nor a build step to use. The same assets are also deployed to GitHub Pages as described below.
 
 The independent `web` CI job installs locked npm dependencies without lifecycle scripts, builds the updater, and verifies that the checked-in download matches every generated/static file. It uploads the same ZIP as `app-web`, independently of Linux Electron packaging. Versioned releases include it alongside other artifacts. Before committing web changes, run `npm ci --ignore-scripts` and `npm run package:web`, then commit the updated ZIP. `web/BUILD.json` inside the archive lists the asset SHA-256 values; comparison uses file contents to tolerate zlib compression differences between machines.
 
-The obsolete `Deploy web UI to GitHub Pages` workflow is deleted. If a site was already published, an administrator can unpublish it under repository Settings → Pages; removing a workflow alone does not unpublish a previously deployed site. The connected GitHub app cannot manage this repository's Pages settings.
+## GitHub Pages
+
+`.github/workflows/pages.yml` builds and validates the web UI and checked-in download. Pushes to `main` affecting web assets/build inputs deploy `web/` to **https://shadowroot.github.io/rc-limit/**. Pull requests validate without publishing; manual runs deploy only when targeting `main`. The separate ZIP download and `app-web` artifact remain available.
+
+If Pages is not already enabled, select **Settings → Pages → Build and deployment → Source → GitHub Actions**, then run **Deploy web UI to GitHub Pages** on `main`. The deployment uses the `github-pages` environment with `pages: write` and `id-token: write`. No personal token is needed. The connected GitHub app cannot manage this repository's administration settings, so initial activation must be done by an admin.
+
+The site needs a browser/OS with Web Serial or Web Bluetooth support and explicit device permission. Device communication stays local to your browser and selected board. Both the hosted site and the downloaded archive use the same relative asset paths, tested under `/rc-limit/`.
