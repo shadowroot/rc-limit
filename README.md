@@ -10,6 +10,8 @@ Firmware uses **PlatformIO**, with **native ESP-IDF** on ESP32/C3 and Arduino-Pi
 
 Use **Update firmware over USB** in the web/Electron GUI to verify a release ZIP and flash ESP32/C3, or export a Pico BOOTSEL UF2. See [firmware updates](docs/firmware-updates.md).
 
+**Pico UF2 install:** Disconnect motor power. Hold **BOOTSEL** while plugging in USB, then copy the extracted/exported **`.uf2` file** (not the ZIP) onto **RPI-RP2**. The Pico reboots automatically.
+
 ## Start here
 
 Use the [deployment scripts](docs/deploy.md) for setup, board flashing, Android installation, and starting the web/Electron app. Run `./scripts/deploy.sh --help` for all targets; every command supports `--dry-run`.
