@@ -2,6 +2,7 @@
 """Package already-built firmware; never select or flash a device."""
 import argparse
 import hashlib
+import json
 from pathlib import Path
 import subprocess
 import zipfile
@@ -33,6 +34,13 @@ def package(board):
               'These are automated builds; physical operation is not certified by compilation.\n\n'
               + flashing + '\nESP32/C3: native ESP-IDF 5.5.0. Pico: Arduino-Pico 4.4.3.\n'
               'Project wiring, commissioning and configuration instructions are included.\n')
+    chip = 'rp2040' if board == 'pico' else 'ESP32' if board == 'esp32' else 'ESP32-C3'
+    addresses = [None] if board == 'pico' else [0x1000 if board == 'esp32' else 0, 0x8000, 0x10000]
+    manifest = {'project': 'rc-limit', 'version': 1, 'board': board, 'chip': chip, 'commit': commit,
+                'images': [{'file': name, 'address': address, 'size': len(files[name]),
+                            'sha256': hashlib.sha256(files[name]).hexdigest()}
+                           for name, address in zip(names, addresses)]}
+    files['update-manifest.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
     files['README.txt'] = readme.encode()
     for name in ('wiring.md', 'commissioning.md', 'board-layouts.md', 'protocol.md'):
         files['docs/' + name] = (ROOT / 'docs' / name).read_bytes()

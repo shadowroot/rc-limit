@@ -105,6 +105,8 @@ These are debug builds for local sideloading, not signed release/store deploymen
 ./scripts/deploy.sh web --port 8090
 ```
 
+The web deployment script needs Node 22.12+ and npm. It installs locked dependencies without lifecycle scripts when necessary, builds the local firmware updater bundle, then starts the server. See [USB firmware updates](firmware-updates.md) for the release ZIP workflow.
+
 Open the printed localhost URL in desktop Chrome/Edge. The server binds to `127.0.0.1`; use Ctrl+C to stop it. This serves the UI on your computer; it does not upload a website to the Pico/ESP32 or publish it remotely.
 
 For Electron, install Node 22.12+ and npm:

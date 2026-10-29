@@ -5,13 +5,38 @@
   "description": "RC ESC limiter configuration desktop shell",
   "license": "MIT",
   "author": "RC Limit contributors",
-  "engines": { "node": ">=22.12.0" },
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "main": "electron/main.cjs",
-  "scripts": { "postinstall": "node node_modules/electron/install.js", "start": "electron .", "package": "electron-builder --dir", "test": "node tests/protocol.test.mjs" },
-  "devDependencies": { "electron": "43.8.4", "electron-builder": "26.18.0" },
+  "scripts": {
+    "postinstall": "node node_modules/electron/install.js",
+    "start": "electron .",
+    "package": "electron-builder --dir",
+    "test": "node tests/protocol.test.mjs",
+    "build:web": "node scripts/build-web.mjs",
+    "prestart": "npm run build:web",
+    "prepackage": "npm run build:web"
+  },
+  "devDependencies": {
+    "electron": "43.8.4",
+    "electron-builder": "26.18.0",
+    "esbuild": "0.28.2",
+    "esptool-js": "0.7.0",
+    "fflate": "0.8.3",
+    "spark-md5": "3.0.2"
+  },
   "build": {
-    "appId": "dev.rclimit.desktop", "productName": "RC Limit",
-    "directories": { "output": "build/desktop" },
-    "files": ["web/**/*", "electron/main.cjs", "electron/preload.cjs", "package.json"]
+    "appId": "dev.rclimit.desktop",
+    "productName": "RC Limit",
+    "directories": {
+      "output": "build/desktop"
+    },
+    "files": [
+      "web/**/*",
+      "electron/main.cjs",
+      "electron/preload.cjs",
+      "package.json"
+    ]
   }
 }

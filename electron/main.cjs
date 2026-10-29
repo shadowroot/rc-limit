@@ -45,7 +45,7 @@ app.whenReady().then(() => {
   });
   window.webContents.setWindowOpenHandler(({ url }) => {
     const link = new URL(url);
-    if (link.protocol === 'https:' && ['datasheets.raspberrypi.com', 'docs.espressif.com', 'smartstream-electronics.co.uk'].includes(link.hostname)) void shell.openExternal(url);
+    if (link.protocol === 'https:' && (['datasheets.raspberrypi.com', 'docs.espressif.com', 'smartstream-electronics.co.uk'].includes(link.hostname) || (link.hostname === 'github.com' && /^\/shadowroot\/rc-limit\/releases(?:\/|$)/.test(link.pathname)))) void shell.openExternal(url);
     return { action: 'deny' };
   });
   window.webContents.on('will-navigate', (event, url) => { if (url.split('#')[0] !== pageUrl) event.preventDefault(); });

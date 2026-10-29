@@ -37,6 +37,12 @@ The browser test uses simulated responses to verify UI and transport integration
 
 Native ESP-IDF compilation does not validate GPIO timing, USB/Bluetooth runtime behavior, stack margins or real Arduino-to-NVS migration. CI app jobs reuse the existing Android/Electron packaging paths; hosted execution requires a GitHub run. Release workflow configuration is not evidence of a published release.
 
+## Firmware update feature checks
+
+The firmware-update branch adds USB ROM-bootloader flashing in the web/Electron app, with Pico UF2 export. Four hardware-free update tests passed: per-board manifests, SHA-256, fixed offsets, image chip IDs, partition layout, UF2 family, detected-chip/flash-size gating, no full erase, separate NVS-preserving write ranges, MD5 verification wiring and propagation of failed writes. All four actual previously compiled firmware bundles were repackaged and accepted by the validator.
+
+Playwright/Chromium updater integration passed under `/rc-limit/` with actual ZIPs: lazy bundle loading, board selection, checksum validation, acknowledgement gating, a cancelled simulated USB chooser and recovery, and Pico UF2 download. No device was selected or flashed. Electron initialization, existing device choosers and Linux packaging passed with the updater bundle. Physical ROM handshake, flash verification, interrupted-update recovery, native USB re-enumeration and settings preservation remain unverified. No wireless or Android firmware flashing is implemented.
+
 ## Local artifacts
 
 - `build/pio/{pico,esp32,esp32c3,esp32c3-devkit}/`: preferred PlatformIO outputs; all four build-only deploy paths passed without flashing hardware.

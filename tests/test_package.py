@@ -1,5 +1,6 @@
 """Check published board bundles, including first-flash offsets and integrity."""
 import hashlib
+import json
 import importlib.util
 from pathlib import Path
 import tempfile
@@ -29,6 +30,14 @@ class PackageTests(unittest.TestCase):
                 with patch.object(packager, 'ROOT', root), patch.object(packager.subprocess, 'check_output', return_value='abc123\n'):
                     packager.package(board)
                 with zipfile.ZipFile(root / 'build/releases' / f'rc-limit-{board}.zip') as archive:
+                    manifest = json.loads(archive.read('update-manifest.json'))
+                    self.assertEqual(manifest['board'], board)
+                    self.assertEqual(manifest['project'], 'rc-limit')
+                    self.assertEqual([image['file'] for image in manifest['images']], names)
+                    for image in manifest['images']:
+                        data = archive.read(image['file'])
+                        self.assertEqual(image['sha256'], hashlib.sha256(data).hexdigest())
+                        self.assertEqual(image['size'], len(data))
                     readme = archive.read('README.txt').decode()
                     self.assertIn(board, readme)
                     self.assertIn('abc123', readme)

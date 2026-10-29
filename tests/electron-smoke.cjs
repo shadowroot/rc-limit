@@ -29,8 +29,11 @@ async function main() {
     await page.locator('#ble-dialog').waitFor({ state: 'visible' });
     await page.locator('#ble-list button').click();
     assert.equal(await app.evaluate(() => global.testBleChoice), 'test-c3');
+    await page.locator('#firmware-update summary').click();
+    await page.waitForFunction(() => !document.getElementById('update-check').disabled);
+    assert.equal(await page.locator('#update-flash').isDisabled(), true);
     assert.deepEqual(errors, []);
-    console.log('Electron integration passed: board layouts, 15 config fields, Web Serial, serial chooser, BLE device chooser/preload callback. BLE event was simulated; no hardware port or radio connection opened.');
+    console.log('Electron integration passed: board layouts, 15 config fields, Web Serial, serial chooser, BLE device chooser/preload callback and bundled updater initialization. BLE event was simulated; no hardware port or radio connection opened.');
   } finally { await app.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

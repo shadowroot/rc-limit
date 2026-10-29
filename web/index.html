@@ -29,6 +29,15 @@ Common GND ────────────────┴── board GND</
         <section class="card" id="esc"><div class="card-heading"><span>04</span><div><h2>ESC calibration</h2><p>Use the stop pulse specified by your ESC.</p></div></div><div class="fields" data-group="esc"></div><p class="hint">Bidirectional default: 1000 / 1500 / 2000 µs. Signal loss disarms and sends the configured neutral. Configure and test your receiver's radio-loss failsafe too.</p></section>
       </form><div class="toolbar"><button id="read" data-device>Read board</button><button id="apply" class="primary" data-device>Apply all mappings</button><button id="save" data-device>Save to flash</button><button id="export">Export JSON</button><label class="file-button">Import JSON<input id="import" type="file" accept="application/json,.json"></label></div>
       <div class="runbar"><div><strong>Ready at neutral?</strong><p>Hold every mapped input at stop for 1 second, then arm all.</p></div><button id="arm" data-device>ARM ALL</button><button id="disarm" class="danger" data-device>DISARM ALL</button></div>
+      <details id="firmware-update" class="card"><summary>Update firmware over USB</summary>
+        <p>Export your settings, disarm, then disconnect the configuration session. Download the matching firmware ZIP from <a href="https://github.com/shadowroot/rc-limit/releases" target="_blank" rel="noreferrer">RC Limit releases</a>.</p>
+        <div class="fields"><label>Exact board<select id="update-board"><option value="pico">Pico RP2040 · BOOTSEL UF2</option><option value="esp32">Original ESP32 DevKit · USB UART</option><option value="esp32c3">C3 Super Mini · native USB</option><option value="esp32c3-devkit">C3 DevKitM-1 · USB UART</option></select></label><label>Firmware release ZIP<input id="update-file" type="file" accept=".zip,application/zip"></label></div>
+        <label class="update-ack"><input id="update-ack" type="checkbox"> Motor power is disconnected, settings are backed up, and the selected board matches my hardware.</label>
+        <div class="toolbar"><button id="update-check" disabled>Verify release ZIP</button><button id="update-flash" disabled>Choose USB port &amp; flash</button><button id="update-uf2" disabled>Export Pico UF2</button></div>
+        <progress id="update-progress" max="1" value="0" aria-label="Firmware update progress"></progress>
+        <p id="update-status" role="status">Open this panel to load the updater.</p><pre id="update-log" aria-label="USB flashing log"></pre>
+        <p class="hint">ESP updates use the ROM USB/UART bootloader. If connection fails, hold BOOT and tap RESET. Keep USB connected until verification finishes. Pico requires holding BOOTSEL while connecting USB, then copying the exported UF2 to RPI-RP2. Wireless firmware updates are unavailable. After reboot, reconnect and read settings before restoring motor power.</p>
+      </details>
       <p id="message" role="status" aria-live="polite">Settings shown are defaults until read from a board. Disconnection is not a confirmed stop.</p></div>
     </div>
   </main>

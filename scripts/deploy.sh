@@ -138,6 +138,9 @@ case "$action" in
     [[ "$port" =~ ^[0-9]{1,5}$ ]] || rc_die 'HTTP port must be an integer from 1 to 65535.'
     (( 10#$port >= 1 && 10#$port <= 65535 )) || rc_die 'HTTP port must be from 1 to 65535.'
     rc_need python3
+    npm=${RC_LIMIT_NPM:-npm};rc_need "$npm";rc_need node
+    if [[ ! -f node_modules/esbuild/package.json ]];then rc_run "$npm" ci --ignore-scripts;fi
+    rc_run "$npm" run build:web
     printf 'Open http://localhost:%s in desktop Chrome/Edge. Press Ctrl+C to stop.\n' "$port"
     rc_run python3 -m http.server "$port" --bind 127.0.0.1 --directory "$RC_ROOT/web"
     ;;

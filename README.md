@@ -8,6 +8,8 @@ This limits the ESC command, not measured motor speed, current, torque, or power
 
 Firmware uses **PlatformIO**, with **native ESP-IDF** on ESP32/C3 and Arduino-Pico on Pico. [CI and releases](docs/releases.md) provide firmware, Android debug, Linux desktop and web downloads.
 
+Use **Update firmware over USB** in the web/Electron GUI to verify a release ZIP and flash ESP32/C3, or export a Pico BOOTSEL UF2. See [firmware updates](docs/firmware-updates.md).
+
 ## Start here
 
 Use the [deployment scripts](docs/deploy.md) for setup, board flashing, Android installation, and starting the web/Electron app. Run `./scripts/deploy.sh --help` for all targets; every command supports `--dry-run`.
@@ -73,6 +75,8 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory web
 ```
 
 Open **http://localhost:8080** in desktop Chrome or Edge. Choose **Connect USB / Classic serial**, then your board. USB works on all targets. Pair `RC-Limiter` with the operating system first for ESP32 Bluetooth Classic SPP; the port picker must expose that serial service. Support depends on the browser/OS. Use Electron or Android when it does not. Use the separate **Connect C3 BLE serial** button for the C3 GATT UART service; browser/OS Web Bluetooth availability varies.
+
+The firmware updater bundle is built with `npm ci --ignore-scripts` followed by `npm run build:web`; `deploy.sh web` prepares it automatically. Configuration alone can still run from the unbundled sources.
 
 The browser requires a secure context (localhost or HTTPS) and user selection of the device. There is no cloud service and no Wi-Fi access point on the firmware. Chrome on Android does not provide this desktop Web Serial workflow; use the native app.
 

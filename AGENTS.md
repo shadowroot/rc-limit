@@ -38,7 +38,7 @@ Install only the tools needed for the work being done. Use the pinned versions i
 | Checks and scripts | Bash, Python 3, g++ with C++11 and address/undefined-behavior sanitizer support, Node.js |
 | Preferred firmware | Python 3 with venv/pip, Git, PlatformIO **6.1.18**, Espressif platform **6.12.0**, native ESP-IDF **5.5.0**; pinned Pico community platform with Arduino-Pico **4.4.3** and ArduinoJson **7.4.2** |
 | Arduino fallback | Arduino CLI; Arduino-Pico **4.4.3** (Earle Philhower core, not Arduino Mbed); Espressif ESP32 core **2.0.17**; ArduinoJson **7.4.2** |
-| Web GUI | Python 3 for local serving; desktop browser supporting Web Serial, such as Chrome/Edge; localhost or HTTPS |
+| Web GUI | Node.js **22.12+**, npm for the firmware updater bundle; Python 3 for local serving; desktop browser supporting Web Serial, such as Chrome/Edge; localhost or HTTPS |
 | Electron | Node.js **22.12+**, npm; Electron **43.8.4** and electron-builder **26.18.0** from `package-lock.json` |
 | Native Android | JDK **17 or 21**; Android SDK Platform **35**, Build Tools **35.0.0**, platform-tools/adb; Gradle wrapper **8.9**, Android Gradle Plugin **8.7.3** |
 | Android USB driver | usb-serial-for-android **3.9.0**, resolved by Gradle |
@@ -54,7 +54,7 @@ For physical testing, have the exact board, receiver and ESC manuals; data-capab
 - `firmware/espidf/`: native Espressif GPIO/LEDC, UART/USB, Bluedroid SPP/BLE, cJSON and NVS implementation.
 - `platformio.ini`: pinned builds for all four boards; ESP targets use `framework = espidf`.
 - `firmware/rc_limiter/rc_limiter.ino`: Arduino fallback/Pico hardware capture/output, persistence and serial/Bluetooth commands.
-- `web/`: shared browser/Electron GUI, BLE transport and protocol client. `web/hardware/boards.json` is shared with Android assets; keep pin layouts and guidance consistent.
+- `web/`: shared browser/Electron GUI, BLE transport and protocol client. `firmware.mjs` validates release manifests; `updater.mjs` uses pinned esptool-js for USB bootloader flashing. Build its ignored `web/dist/` bundle via `npm run build:web`; include third-party licenses. `web/hardware/boards.json` is shared with Android assets; keep pin layouts and guidance consistent.
 - `electron/`: sandboxed desktop shell, preload bridge and device chooser.
 - `android/`: native Java Android app, USB serial and Bluetooth transports.
 - `scripts/`: checks, isolated firmware setup and deployment entry points.
@@ -105,6 +105,7 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 - Compile affected firmware targets after hardware API or firmware changes. Build Android after native source/build changes and verify Electron packaging after desktop packaging changes.
 - Use the optional browser/Electron integration checks described in `docs/validation.md` for relevant UI/transport changes. Clearly label simulated serial devices.
 - Distinguish compilation, mocked tests and real hardware verification in reports. Follow `docs/commissioning.md` for actual waveform, ESC, receiver failsafe, power-loss and transport tests.
+- Firmware updates use USB bootloaders: ESP32/C3 via Web Serial, Pico via RP2040 UF2 BOOTSEL copy. No BLE/Wi-Fi OTA is implemented. Verify manifest board, chip, offsets, hashes and partition layout before any flash write; preserve NVS and require an explicit port and disconnected motor power.
 - Update `docs/protocol.md` when commands, fields or mappings change; update `docs/build.md` and `docs/deploy.md` when prerequisites or deployment change.
 - Keep `docs/validation.md` factual: record checks actually completed and physical tests still outstanding. Do not claim physical validation based on a successful build.
 - For this documentation-only file, review consistency with source/manifests; no firmware rebuild or device deployment is needed.

@@ -2,7 +2,7 @@ name: Checks, firmware and releases
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'feature/**']
     tags: ['v*']
   pull_request:
   workflow_dispatch:

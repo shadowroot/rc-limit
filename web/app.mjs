@@ -42,7 +42,7 @@ function currentProfile() {
   stashMapping(); return { version: 2, mappings: validateMappings(draftMappings, boardName) };
 }
 renderMappings();
-let port, reader, writer, protocol, polling, readTask, bleLink, connecting = false, closing = false;
+let port, reader, writer, protocol, polling, readTask, bleLink, connecting = false, closing = false, updatingFirmware = false;
 let boardProfiles = [], selectedBoard;
 function renderBoardGuide() {
   const board = boardProfiles.find(p => p.id === $('board-layout').value); if (!board) return;
@@ -72,8 +72,8 @@ for (const key of ['input_pin', 'output_pin']) controls[key].addEventListener('i
 function message(text) { $('message').textContent = text; }
 function deviceButtons(connected) {
   document.querySelectorAll('[data-device]').forEach(b => b.disabled = !connected);
-  $('connect').disabled = connected || connecting; $('disconnect').disabled = !connected;
-  $('connect-ble').disabled = connected || connecting;
+  $('connect').disabled = connected || connecting || updatingFirmware; $('disconnect').disabled = !connected;
+  $('connect-ble').disabled = connected || connecting || updatingFirmware;
 }
 deviceButtons(false);
 function status(data) {
@@ -117,6 +117,7 @@ async function activateConnection(current) {
   }, bleLink ? 500 : 250);
 }
 async function connect() {
+  if (updatingFirmware) return;
   if (!navigator.serial) { message('Web Serial is unavailable. Use desktop Chrome/Edge, Electron, or the native Android app.'); return; }
   connecting = true; deviceButtons(false);
   try {
@@ -149,6 +150,7 @@ async function connect() {
   } finally { connecting = false; $('connect').disabled = $('connect-ble').disabled = !!protocol; }
 }
 async function connectBle() {
+  if (updatingFirmware) return;
   connecting = true; deviceButtons(false);
   try {
     const link = await openBle(text => protocol?.feed(text), error => { message(error.message); void disconnect(false); });
@@ -267,3 +269,17 @@ if (window.desktopSerial) {
   $('cancel-port').onclick = () => { window.desktopSerial.choose(''); $('port-dialog').close(); };
   $('port-dialog').addEventListener('cancel', () => window.desktopSerial.choose(''));
 }
+
+let updaterReady = false, updaterLoading = false;
+$('firmware-update').addEventListener('toggle', async () => {
+  if (!$('firmware-update').open || updaterReady || updaterLoading) return;
+  updaterLoading = true;
+  try {
+    const { initUpdater } = await import('./dist/updater.mjs');
+    initUpdater({ canUpdate: () => !protocol && !connecting && !closing,
+      setBusy: busy => { updatingFirmware = busy; deviceButtons(!!protocol); } });
+    updaterReady = true;
+  } catch (error) {
+    $('update-status').textContent = 'Updater could not load. For local source checkouts, run npm ci --ignore-scripts and npm run build:web, then reopen this panel. ' + error.message;
+  } finally { updaterLoading = false; }
+});

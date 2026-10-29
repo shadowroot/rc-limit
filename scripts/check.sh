@@ -8,6 +8,8 @@ g++ -std=c++11 -Wall -Wextra -Werror -fsanitize=undefined,address tests/test_lim
 ASAN_OPTIONS=detect_leaks=0 "$test_binary"
 node tests/protocol.test.mjs
 node --check web/app.mjs
+node --check web/updater.mjs
+node tests/firmware.test.mjs
 node tests/hardware-ble.test.mjs
 node --check web/ble.mjs
 node --check web/boards.mjs
