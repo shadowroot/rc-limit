@@ -114,7 +114,7 @@ case "$action" in
     fi
     if [[ -z "$apk" ]]; then
       rc_need java
-      (cd "$RC_ROOT/android"; rc_run ./gradlew --no-daemon assembleDebug)
+      (cd "$RC_ROOT/android"; rc_run ./gradlew assembleDebug)
       apk="$RC_ROOT/build/android/rc-limit-debug.apk"
       rc_run mkdir -p "$RC_ROOT/build/android"
       rc_run cp "$RC_ROOT/android/app/build/outputs/apk/debug/app-debug.apk" "$apk"

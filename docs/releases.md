@@ -22,6 +22,8 @@ Android APKs use disposable runner debug keys: different runs may require uninst
 
 The Android job overrides `android-actions/setup-android`'s default `tools platform-tools` package list. The obsolete standalone `tools` package is not needed: pinned command-line tools `12266719` supply `sdkmanager`, and the action installs `platform-tools`, `platforms;android-35` and `build-tools;35.0.0` explicitly. A verification step checks the exported SDK location, platform JAR, adb and aapt2 before Gradle runs, so SDK setup errors appear at their source.
 
+`gradle/actions/setup-gradle@v4` caches dependencies, wrapper distributions and Gradle task outputs. `org.gradle.caching=true` enables reuse of cacheable Android tasks after restoring that cache. Push builds can save cache entries; pull requests restore them read-only. A separate cache retains command-line tools 16.0 (build 12266719), avoiding the repeated command-line tools ZIP download. The job reuses the runner’s SDK root and preinstalled platform/build tools. Keep the cached directory version and key aligned with the pinned setup version when upgrading. The first run fills caches; later builds benefit.
+
 ## Windows builds
 
 The `windows` job runs on `windows-2022`, installs locked npm dependencies with Node 22, builds the firmware-updater bundle and runs `npm run package:win`. Only the two completed EXE files are uploaded as `app-windows-x64`; a missing installer or portable build fails the job. Version tags attach both EXEs to the same draft release/checksum list as the other artifacts. `--publish never` prevents electron-builder from independently publishing releases. No signing secrets are required for these unsigned builds.
