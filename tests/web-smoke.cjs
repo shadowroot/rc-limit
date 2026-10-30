@@ -12,7 +12,7 @@ async function main() {
     const base = '/rc-limit/';
     if (!pathname.startsWith(base)) { res.writeHead(404).end(); return; }
     const filename = pathname === base ? 'index.html' : pathname.slice(base.length);
-    if (!['index.html', 'app.mjs', 'protocol.mjs', 'ble.mjs', 'boards.mjs', 'hardware/boards.json', 'style.css'].includes(filename)) { res.writeHead(404).end(); return; }
+    if (!['index.html', 'app.mjs', 'protocol.mjs', 'ble.mjs', 'boards.mjs', 'i18n.mjs', 'i18n/cs.json', 'hardware/boards.json', 'style.css'].includes(filename)) { res.writeHead(404).end(); return; }
     res.setHeader('Content-Type', filename.endsWith('.mjs') ? 'text/javascript' : filename.endsWith('.json') ? 'application/json' : filename.endsWith('.css') ? 'text/css' : 'text/html');
     res.end(await fs.readFile(path.join(project, 'web', filename)));
   });
@@ -24,23 +24,23 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(config => {
-      let controller; let armed = false, saved = false, revision = 0, deviceName = 'Pico-ABC123';
+      let controller; let active = false, configurable = true, saved = false, revision = 0, deviceName = 'Pico-ABC123';
       const board = new URL(location.href).searchParams.get('board') || 'pico';
       let mappings = [{ ...config, input_pin: board === 'esp32c3' ? 3 : board === 'esp32' ? 27 : 4, output_pin: board === 'esp32c3' ? 4 : board === 'esp32' ? 25 : 5 }];
       function reply(line, emit) {
         const request = JSON.parse(line); let error;
-        if (request.cmd === 'set_mappings') { if (armed) error = 'disarm_first'; else { mappings = request.mappings; revision++; saved = false; } }
+        if (request.cmd === 'set_mappings') { if (!configurable) error = 'hold_all_neutral_for_1s'; else { mappings = request.mappings; revision++; saved = false; } }
         window.simulatedMappings = mappings;
-        if (request.cmd === 'set_name') { if (armed) error = 'disarm_first'; else deviceName = request.name; }
+        if (request.cmd === 'set_name') { if (!configurable) error = 'hold_all_neutral_for_1s'; else deviceName = request.name; }
         if (request.cmd === 'save') saved = true;
-        if (request.cmd === 'arm') armed = true;
-        if (request.cmd === 'disarm') armed = false;
-        const response = { device_name: deviceName, device_id: '001122ABC123', name_pending_restart: deviceName !== 'Pico-ABC123', id: request.id, ok: !error, error, board, armed, saved, revision,
-          signal_ok: true, input_us: 1500, output_us: 1500, config: mappings[0], protocol_version: 2,
-          max_mappings: 4, mappings, channel_states: mappings.map(() => ({ input_us: 1500, output_us: 1500, signal_ok: true, armed })),
+        if (['arm','disarm'].includes(request.cmd)) throw new Error('Manual control command sent');
+        const response = { device_name: deviceName, device_id: '001122ABC123', name_pending_restart: deviceName !== 'Pico-ABC123', id: request.id, ok: !error, error, board, active, configurable, saved, revision,
+          signal_ok: true, input_us: 1500, output_us: 1500, config: mappings[0], protocol_version: 3, control_mode: 'automatic_neutral',
+          max_mappings: 4, mappings, channel_states: mappings.map(() => ({ input_us: 1500, output_us: 1500, signal_ok: true, active })),
           transports: { usb_serial: true, bluetooth_serial: board !== 'pico', bluetooth_type: board === 'esp32c3' ? 'ble' : 'classic_spp', usb_interface: 'native_cdc', bluetooth_name: board === 'esp32c3' ? 'RC-Limiter-C3' : 'RC-Limiter' } };
         emit(new TextEncoder().encode(JSON.stringify(response) + '\n'));
       }
+      window.simulateControl = (enabled, editable) => { active = enabled; configurable = editable; };
       const port = {
         async open() {}, async setSignals(signals) { window.serialSignals = signals; }, async close() {},
         getInfo() { return { usbVendorId: board === 'pico' ? 0x2e8a : board === 'esp32c3' ? 0x303a : 0x10c4 }; },
@@ -84,7 +84,7 @@ async function main() {
     assert.equal(await page.locator('#board-drawing .pin-row').count(), 20);
     await page.locator('#board-guide summary').click();
     assert.equal(await page.locator('#bidirectional').inputValue(), '1');
-    assert.equal(await page.locator('#arm').isDisabled(), true);
+    assert.equal(await page.locator('#arm, #disarm').count(), 0);
     await page.locator('#connect').click();
     await page.waitForFunction(() => document.getElementById('connection').textContent === 'CONNECTED');
     await page.locator('#device-name').fill('Boat port ESC');
@@ -117,15 +117,22 @@ async function main() {
     await page.locator('#mapping-select').selectOption('1');
     assert.equal(await page.locator('#reverse_percent').inputValue(), '12');
     assert.equal(await page.locator('#mapping-summary p').count(), 2);
-    await page.locator('#arm').click();
-    await page.waitForFunction(() => document.getElementById('armed').textContent === 'ARMED');
+    await page.evaluate(() => window.simulateControl(true, false));
+    await page.waitForFunction(() => document.getElementById('control-state').textContent === 'ACTIVE');
     assert.equal(await page.locator('#rename-device').isDisabled(), true);
     assert.equal(await page.locator('#apply').isDisabled(), true);
     assert.equal(await page.locator('#add-mapping').isDisabled(), true);
-    await page.locator('#disarm').click();
-    await page.waitForFunction(() => document.getElementById('armed').textContent === 'DISARMED');
+    await page.evaluate(() => window.simulateControl(true, true));
+    await page.waitForFunction(() => !document.getElementById('apply').disabled);
     await page.locator('#forward_percent').fill('101'); await page.locator('#apply').click();
     assert.match(await page.locator('#message').textContent(), /0–100/);
+    await page.locator('#language-select').selectOption('cs');
+    await page.waitForFunction(() => document.documentElement.lang === 'cs');
+    assert.equal(await page.locator('#control-state').textContent(), 'AKTIVNÍ');
+    assert.equal(await page.locator('#forward_percent').inputValue(), '101');
+    assert.match(await page.locator('#device-identity').textContent(), /Boat port ESC/);
+    assert.equal(await page.locator('#bidirectional').inputValue(), '1');
+    await page.locator('#language-select').selectOption('en');
     const profile = { ...defaults, forward_percent: 18, reverse_percent: 22 };
     await page.locator('#import').setInputFiles({ name: 'profile.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(profile)) });
     await page.waitForFunction(() => document.getElementById('forward_percent').value === '18');
@@ -153,8 +160,8 @@ async function main() {
     await page.screenshot({ path: path.join(project, 'build/web-preview.png'), fullPage: true });
     await page.locator('#disconnect').click();
     await page.waitForFunction(() => document.getElementById('connection').textContent === 'OFFLINE');
-    assert.equal(await page.locator('#armed').textContent(), 'UNKNOWN');
-    assert.match(await page.locator('#message').textContent(), /confirmed DISARM/);
+    assert.equal(await page.locator('#control-state').textContent(), 'UNKNOWN');
+    assert.match(await page.locator('#message').textContent(), /receiver|transmitter/i);
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.goto(`http://127.0.0.1:${server.address().port}/rc-limit/?board=esp32`);
@@ -196,7 +203,7 @@ async function main() {
     await page.locator('#disconnect').click();
     await page.waitForFunction(() => document.getElementById('connection').textContent === 'OFFLINE');
     assert.deepEqual(errors, []);
-    console.log('Browser integration passed: Pico/ESP32/C3 USB, C3 BLE UART fragmentation and apply/save, SPP picker, board diagrams/suggested pins, 1–4 mappings, validation, arming UI, profiles and responsive layout. Radio and serial devices were simulated.');
+    console.log('Browser integration passed: Pico/ESP32/C3 USB, C3 BLE UART fragmentation and apply/save, SPP picker, board diagrams/suggested pins, 1–4 mappings, validation, automatic control UI and Czech switching, profiles and responsive layout. Radio and serial devices were simulated.');
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

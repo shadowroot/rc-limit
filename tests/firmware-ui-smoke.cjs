@@ -11,7 +11,7 @@ async function main() {
     const pathname = new URL(req.url, 'http://localhost').pathname;
     if (!pathname.startsWith('/rc-limit/')) { res.writeHead(404).end();return; }
     const name = pathname.slice('/rc-limit/'.length) || 'index.html';
-    if (!/^(?:[\w-]+\.(?:html|css|mjs)|dist\/[\w.-]+|hardware\/boards.json|firmware\/catalog.json|firmware\/stable\/rc-limit-[\w-]+\.zip)$/.test(name)) { res.writeHead(404).end();return; }
+    if (!/^(?:[\w-]+\.(?:html|css|mjs)|dist\/[\w.-]+|hardware\/boards.json|i18n\/cs.json|firmware\/catalog.json|firmware\/stable\/rc-limit-[\w-]+\.zip)$/.test(name)) { res.writeHead(404).end();return; }
     try {
       res.setHeader('Content-Type', name.endsWith('.zip') ? 'application/zip' : name.endsWith('.mjs') ? 'text/javascript' : name.endsWith('.json') ? 'application/json' : name.endsWith('.css') ? 'text/css' : 'text/html');
       res.end(await fs.readFile(path.join(webRoot, name)));

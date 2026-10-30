@@ -30,7 +30,7 @@ def package(board):
                     'Super Mini uses native USB; C3 DevKitM-1 uses the USB-UART connector.\n')
     readme = (f'RC Limit firmware: {board}\nSource commit: {commit}\n\n'
               'Disconnect motor power before flashing. Back up configuration profiles first.\n'
-              'Boot starts disarmed. Confirm pins, ESC neutral, limits and failsafe before use.\n'
+              'Boot starts stopped; control enables automatically after all inputs stay neutral for one second. Confirm pins, ESC neutral, limits and failsafe before use.\n'
               'These are automated builds; physical operation is not certified by compilation.\n\n'
               + flashing + '\nESP32/C3: native ESP-IDF 5.5.0. Pico: Arduino-Pico 4.4.3.\n'
               'Project wiring, commissioning and configuration instructions are included.\n')

@@ -32,6 +32,11 @@ async function main() {
     await page.locator('#firmware-update summary').click();
     await page.waitForFunction(() => !document.getElementById('update-check').disabled);
     assert.equal(await page.locator('#update-flash').isDisabled(), true);
+    await page.locator('#language-select').selectOption('cs');
+    assert.equal(await page.locator('#connect').textContent(), 'Připojit USB / Bluetooth Classic ↗');
+    assert.equal(await page.locator('#bidirectional').inputValue(), '1');
+    await page.reload();await page.waitForSelector('#bidirectional');
+    assert.equal(await page.locator('#language-select').inputValue(), 'cs');
     assert.deepEqual(errors, []);
     console.log('Electron integration passed: board layouts, 15 config fields, Web Serial, serial chooser, BLE device chooser/preload callback and bundled updater initialization. BLE event was simulated; no hardware port or radio connection opened.');
   } finally { await app.close(); }

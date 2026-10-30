@@ -1,3 +1,4 @@
+import { t } from './i18n.mjs';
 let profiles = [];
 export async function loadBoardProfiles() {
   const response = await fetch(new URL('./hardware/boards.json', import.meta.url));
@@ -7,7 +8,7 @@ export async function loadBoardProfiles() {
 export function dividerVoltage(input, top = 4700, bottom = 6800) { return input * bottom / (top + bottom); }
 export function drawBoard(board, container, selectedInput, selectedOutput) {
   container.replaceChildren();
-  const title = document.createElement('p'); title.textContent = `Top/component view · USB at ${board.usb} · verify your board's silkscreen`; title.className = 'hint'; container.append(title);
+  const title = document.createElement('p'); title.textContent = t(`Top/component view · USB at ${board.usb} · verify your board's silkscreen`); title.className = 'hint'; container.append(title);
   const drawing = document.createElement('div'); drawing.className = 'pinboard';
   const usb = document.createElement('div'); usb.className = 'pinboard-usb'; usb.textContent = 'USB';
   if (board.usb === 'top') drawing.append(usb);

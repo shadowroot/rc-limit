@@ -1,27 +1,27 @@
 # Serial protocol and mappings
 
-USB serial on Pico, original ESP32 and C3, ESP32 Bluetooth Classic SPP, and C3 BLE UART use the same version 2 newline-delimited JSON commands. Use **115200, 8N1** for the ESP32 USB-to-UART bridge; USB CDC and Bluetooth baud are abstractions. Pico uses native USB CDC. ESP32 Bluetooth starts automatically as **RC-&lt;device name&gt;**, alongside USB; see device identity below.
+USB serial on Pico, original ESP32 and C3, ESP32 Bluetooth Classic SPP, and C3 BLE UART use the same version 3 newline-delimited JSON commands. Use **115200, 8N1** for the ESP32 USB-to-UART bridge; USB CDC and Bluetooth baud are abstractions. Pico uses native USB CDC. ESP32 Bluetooth starts automatically as **RC-&lt;device name&gt;**, alongside USB; see device identity below.
 
 Use one JSON object per line, maximum **3071 bytes** excluding the newline. Overlong lines are discarded through their newline and an error response follows. Each transport has an independent line buffer. Replies go to the transport carrying the command. There is no unsolicited telemetry; poll `get` at 2–4 Hz, waiting for the preceding reply. Four-channel replies are larger and can reduce achievable polling rate over USB UART. Use one controller at a time.
 
 ```json
 {"cmd":"get","id":1}
-{"cmd":"disarm","id":2}
-{"cmd":"arm","id":3}
 {"cmd":"save","id":4}
 ```
 
-Every reply includes `ok`, echoed integer `id` (0 when omitted/unparseable), `board`, `protocol_version: 2`, `max_mappings: 4`, `armed`, `signal_ok`, `revision`, `saved`, `mappings`, `channel_states`, and `transports`. Errors add `error`. Match replies by ID.
+Every reply includes `ok`, echoed integer `id` (0 when omitted/unparseable), `board`, `protocol_version: 3`, `max_mappings: 4`, `control_mode: "automatic_neutral"`, `active`, `configurable`, `signal_ok`, `revision`, `saved`, `mappings`, `channel_states`, and `transports`. Errors add `error`. Match replies by ID.
 
 - `mappings`: one to four complete channel configurations.
-- `channel_states`: matching entries containing `input_us`, `output_us`, `signal_ok` and `armed` for each mapping.
-- Top-level `armed` describes all outputs; top-level `signal_ok` is true only when all mapped inputs are healthy.
+- `channel_states`: matching entries containing `input_us`, `output_us`, `signal_ok` and `active` for each mapping.
+- Top-level `active` describes all outputs; deprecated read-only `armed` aliases remain for older telemetry clients; top-level `signal_ok` is true only when all mapped inputs are healthy.
 - For legacy inspection, top-level `input_us`, `output_us` and `config` describe mapping 1 only.
 - `transports`: `usb_serial: true`, plus `bluetooth_serial` equal to the wireless startup result. `bluetooth_type` is `classic_spp`, `ble` or `none`; names use `RC-<device name>` captured at boot. C3 also reports `ble_service` and `usb_interface` (`native_cdc` for Super Mini or `usb_uart` for DevKitM-1). Pico reports Bluetooth false. A false result on ESP32 indicates Bluetooth initialization failed; USB remains available. These fields describe capabilities, not which connection carried the command.
 
-`get` reads state. `disarm` clears all arming and neutral dwell and requests each stop pulse. `arm` succeeds atomically only when **every input** is healthy and all inputs have remained at their own neutral for one second. Losing any mapped input stops and disarms all outputs; restoration never rearms. `save` writes all active mappings to flash, not edits still in a GUI form.
+`get` reads state. Control is automatic: every mapped input must be healthy and held at neutral for one second before all outputs enable together. Any invalid/stale input stops every output and resets all neutral dwell timers. Recovery requires a fresh one-second neutral dwell on every input; a restored throttle signal cannot resume control. `arm` and `disarm` commands return `automatic_control` and have no effect.
 
-`set_mappings` replaces the complete array while disarmed. All fields and cross-mapping pin constraints are validated before hardware changes. This valid example configures one Pico mapping; include additional full objects to configure more:
+`configurable` is true when outputs are inactive, or every active input has stayed neutral for one second. `set`, `set_mappings`, `save` and `set_name` require this state; otherwise they return `hold_all_neutral_for_1s`. An accepted mutation stops all outputs and resets neutral dwell before changing hardware or writing flash. Inactive boards can be configured even with missing/miswired receiver inputs. `save` stores the applied mappings, not GUI drafts.
+
+`set_mappings` replaces the complete array when `configurable` is true. All fields and cross-mapping pin constraints are validated before hardware changes. This valid example configures one Pico mapping; include additional full objects to configure more:
 
 ```json
 {"cmd":"set_mappings","id":5,"mappings":[{"input_pin":4,"output_pin":5,"input_min":1000,"input_neutral":1500,"input_max":2000,"output_min":1000,"output_neutral":1500,"output_max":2000,"forward_percent":30,"reverse_percent":30,"bidirectional":1,"scale":1,"invert":0,"deadband":30,"timeout_ms":100}]}
@@ -33,7 +33,7 @@ Profiles export as `{"version":2,"mappings":[...]}` with exactly those two root 
 
 The apps import an original bare 15-field channel profile as a one-entry array. Firmware reads legacy magic/checksum records as one mapping and writes the new versioned format on the next explicit Save. Verify the recovered pins, calibration and limits after upgrading before connecting motor power.
 
-Legacy `{"cmd":"set","config":{...}}` is accepted only when the live board has exactly one mapping. With multiple mappings it returns `use_set_mappings`, preserving the other channels. Old clients can inspect mapping 1 and issue board-wide arm/disarm/save, but cannot edit multiple mappings. New apps can read old firmware and edit one channel with legacy `set`; firmware version 2 is required to apply multiple mappings.
+Legacy `{"cmd":"set","config":{...}}` is accepted only when the live board has exactly one mapping. With multiple mappings it returns `use_set_mappings`, preserving the other channels. Old clients can inspect mapping 1 and save when configurable, but cannot edit multiple mappings or manually enable/disable control. Upgrade clients and firmware together for automatic control. New apps can read old firmware and edit one channel with legacy `set`; firmware version 2 is required to apply multiple mappings.
 
 ## Channel fields
 
@@ -66,15 +66,15 @@ The result is added to or subtracted from output neutral. Integer arithmetic rou
 
 Forward-only mode uses input minimum as stop (input maximum when inverted), and maps to output minimum through output maximum. Reverse percentage and output neutral do not affect the command in this mode, although ordered calibration fields are still required.
 
-Only completed pulses **800–2200 µs** count as valid. Pulses outside the calibrated input endpoints but inside that absolute interval are clamped to calibrated endpoints. Invalid widths or stale input on any mapping clear all arming; every output becomes its configured stop. A high or low stuck signal times out because no new falling edge completes a valid pulse. The firmware does not decode receiver RF-link state, validate pulse repetition rate, or authenticate the transmitter.
+Only completed pulses **800–2200 µs** count as valid. Pulses outside the calibrated input endpoints but inside that absolute interval are clamped to calibrated endpoints. Invalid widths or stale input on any mapping disable all outputs; every output becomes its configured stop. A high or low stuck signal times out because no new falling edge completes a valid pulse. The firmware does not decode receiver RF-link state, validate pulse repetition rate, or authenticate the transmitter.
 
 ## Timing and failure limits
 
 Hardware PWM repeats at 50 Hz. Normal receiver timeout is evaluated in the main loop, usually every few milliseconds, with the updated pulse taking effect by a subsequent 20 ms frame. This is a command processor, not a certified timing/safety controller. Blocking transport writes and firmware faults may delay the main loop. A 2-second watchdog is configured after startup; in a stalled-loop case the previous hardware PWM may persist until watchdog reset. Test this separately from normal receiver timeout. An external hardware cutoff is necessary when that delay is unacceptable.
 
-Each ESC sees no pulses during some boot/remap/reset intervals, then its configured stop pulse. Pin changes can truncate one frame. Perform them only with motor power removed. Flash writes happen only while disarmed. Saved data uses a magic/schema value, a version 2 profile and FNV-1a checksum, with 4096 bytes of EEPROM emulation. Saving is not power-failure atomic. An interrupted/corrupt save or unavailable storage may cause fallback to one default mapping on next boot. Confirm `saved`, mapping count, pins and every limit after reboot. On ESP32, expanding old EEPROM emulation from 1024 to 4096 bytes may itself perform an NVS write during startup.
+Each ESC sees no pulses during some boot/remap/reset intervals, then its configured stop pulse. Pin changes can truncate one frame. Perform them only with motor power removed. Flash writes happen only when `configurable` is true. Saved data uses a magic/schema value, a version 2 profile and FNV-1a checksum, with 4096 bytes of EEPROM emulation. Saving is not power-failure atomic. An interrupted/corrupt save or unavailable storage may cause fallback to one default mapping on next boot. Confirm `saved`, mapping count, pins and every limit after reboot. On ESP32, expanding old EEPROM emulation from 1024 to 4096 bytes may itself perform an NVS write during startup.
 
-Common errors: `invalid_json`, `invalid_config` (legacy set), `invalid_mappings`, `use_set_mappings`, `disarm_first`, `hold_all_neutral_for_1s`, `save_failed`, `unknown_command`, `line_too_long`. Receiver restoration never rearms automatically.
+Common errors: `invalid_json`, `invalid_config` (legacy set), `invalid_mappings`, `use_set_mappings`, `automatic_control`, `hold_all_neutral_for_1s`, `save_failed`, `unknown_command`, `line_too_long`. Receiver restoration requires every input neutral for one second before automatic recovery.
 
 ## C3 BLE UART transport
 
@@ -88,11 +88,11 @@ C3 firmware advertises **RC-&lt;device name&gt;** with the [Nordic UART Service]
 
 Subscribe to TX notifications before writing commands. App clients serialize acknowledged RX writes in **20-byte chunks**, which work with the default 23-byte ATT MTU. A newline, not a BLE packet boundary, terminates a JSON message. Reassemble TX notification fragments before parsing; commands and replies can span many packets. IDs retain their usual request/reply meaning. Larger MTUs are not required.
 
-Firmware BLE callbacks enqueue data; the main loop processes JSON and receiver failsafes. TX is drained nonblockingly, up to 20 bytes per 5 ms loop interval, retaining unsent bytes if the BLE stack reports congestion. Firmware has 4096-byte RX and 8192-byte TX rings; a ring overflow quarantines that BLE session until reconnect. Partial receive lines and queues are cleared on BLE session changes. A reconnect does not arm the board. BLE app requests allow 15 seconds for fragmented command/reply delivery, while normal receiver timeout remains independently configured per mapping.
+Firmware BLE callbacks enqueue data; the main loop processes JSON and receiver failsafes. TX is drained nonblockingly, up to 20 bytes per 5 ms loop interval, retaining unsent bytes if the BLE stack reports congestion. Firmware has 4096-byte RX and 8192-byte TX rings; a ring overflow quarantines that BLE session until reconnect. Partial receive lines and queues are cleared on BLE session changes. Reconnecting the app does not change receiver control. BLE app requests allow 15 seconds for fragmented command/reply delivery, while normal receiver timeout remains independently configured per mapping.
 
-The service has no pairing, bonding or application authentication requirement. Anyone able to connect locally can configure the board; use a controlled bench environment. Connection loss or a response timeout does not prove disarm was delivered. USB remains active, but use a single controller to avoid competing state changes. The original ESP32 build keeps Classic SPP and does not advertise this BLE service.
+The service has no pairing, bonding or application authentication requirement. Anyone able to connect locally can configure the board; use a controlled bench environment. Connection loss or a response timeout does not stop receiver control. USB remains active, but use a single controller to avoid competing state changes. The original ESP32 build keeps Classic SPP and does not advertise this BLE service.
 
-Native ESP-IDF replies additionally include `"framework":"esp-idf"`. Clients should ignore unfamiliar metadata fields. Command and profile version 2 semantics are unchanged.
+Native ESP-IDF replies additionally include `"framework":"esp-idf"`. Clients should ignore unfamiliar metadata fields. Profile schema remains version 2; protocol version 3 replaces manual arming with automatic neutral-gated control.
 
 ## Device identity and naming
 
@@ -102,7 +102,7 @@ Naming-capable firmware adds `device_name`, `device_id` and `name_pending_restar
 {"cmd":"set_name","id":7,"name":"Boat port ESC"}
 ```
 
-`set_name` is accepted only while disarmed. Names are 1–16 ASCII letters/digits, spaces, dots, underscores or hyphens, with no leading/trailing space. Errors are `invalid_name`, `disarm_first` or `name_save_failed`. Success persists the name immediately and updates `device_name`; no `save` is required. It does not apply/save mapping drafts or change the mapping `saved` flag. Identity is per physical board, separate from imported/exported mapping profiles.
+`set_name` is accepted only when `configurable` is true. It stops outputs and restarts the neutral dwell before writing identity storage. Names are 1–16 ASCII letters/digits, spaces, dots, underscores or hyphens, with no leading/trailing space. Errors are `invalid_name`, `hold_all_neutral_for_1s` or `name_save_failed`. Success persists the name immediately and updates `device_name`; no `save` is required. It does not apply/save mapping drafts or change the mapping `saved` flag. Identity is per physical board, separate from imported/exported mapping profiles.
 
 Unnamed devices get a board-family name plus the final six hardware-ID hex digits, such as `ESP32-A1B2C3`, `C3-A1B2C3` or `Pico-A1B2C3`. Bluetooth uses `RC-` plus the name captured at boot, e.g. `RC-Boat port ESC`. Existing Bluetooth sessions stay connected; restart with motor power disconnected to advertise the new name. `transports.bluetooth_name` reports the name actually used for the current boot; `name_pending_restart` indicates a differing saved name on Bluetooth boards. Pico reports false because it has no Bluetooth.
 

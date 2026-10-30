@@ -70,7 +70,7 @@ export function nextMapping(mappings, board) {
   throw new Error('No unused suggested pin pair. Adjust existing pins or remove a mapping first.');
 }
 
-// Request IDs keep a DISARM response separate from an in-flight telemetry response.
+// Request IDs keep a command response separate from an in-flight telemetry response.
 export class Protocol {
   constructor(write, onStatus = () => {}, onFault = () => {}, timeout = 2500) {
     this.write = write; this.onStatus = onStatus; this.onFault = onFault;

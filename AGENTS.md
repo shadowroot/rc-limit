@@ -26,8 +26,8 @@ These are implementation choices, not additional original user requirements. Doc
 - Original ESP32 uses Classic SPP/RFCOMM. C3 uses Nordic UART Service BLE GATT. Both advertise RC- plus the saved device name after reboot. Pico uses USB only. Keep Classic and BLE chooser paths distinct, serialize/chunk BLE writes and assemble notification fragments before parsing JSON.
 - Default GPIO mapping: Pico GP4 input → GP5 output; ESP32 GPIO27 input → GPIO25 output; C3 GPIO3 input → GPIO4 output. GPIO numbers are not physical header positions.
 - Bidirectional pulse defaults: 1000 / 1500 neutral / 2000 µs, with 30% forward and reverse limits. Confirm the actual ESC neutral before motor operation.
-- Device names are per-board identity, independently persisted from mapping profiles. Preserve the hardware ID, name record/NVS key and discovery-by-service behavior; renaming must be rejected while armed and Bluetooth name changes take effect after reboot. USB descriptors are not user-renamed.
-- Both apps share the firmware's version 2 newline-delimited JSON protocol and profiles containing a `mappings` array of 15-field channel configurations. Import legacy single-channel profiles and saved configurations; preserve compatibility or document a coordinated migration.
+- Device names are per-board identity, independently persisted from mapping profiles. Preserve the hardware ID, name record/NVS key and discovery-by-service behavior; renaming requires inactive outputs or every active input held neutral for one second and Bluetooth name changes take effect after reboot. USB descriptors are not user-renamed.
+- Both apps share the firmware's version 3 newline-delimited JSON protocol and version 2 profiles containing a `mappings` array of 15-field channel configurations. Import legacy single-channel profiles and saved configurations; preserve compatibility or document a coordinated migration.
 - The limiter constrains the ESC command. It does not measure or guarantee motor speed, current, torque or power.
 
 ## Development prerequisites
@@ -52,7 +52,7 @@ For physical testing, have the exact board, receiver and ESC manuals; data-capab
 
 ## Source layout
 
-- `firmware/rc_limiter/limiter.h`: portable mapping and arming/failsafe logic.
+- `firmware/rc_limiter/limiter.h`: portable mapping and automatic neutral-gating/failsafe logic.
 - `firmware/espidf/`: native Espressif GPIO/LEDC, UART/USB, Bluedroid SPP/BLE, cJSON and NVS implementation.
 - `platformio.ini`: pinned builds for all four boards; ESP targets use `framework = espidf`.
 - `firmware/rc_limiter/rc_limiter.ino`: Arduino fallback/Pico hardware capture/output, persistence and serial/Bluetooth commands.
@@ -89,13 +89,13 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 
 ## Runtime behavior to preserve
 
-- Boot/reset starts disarmed. Arming all outputs is explicit and requires every mapped receiver input to be healthy and held at neutral for one second.
-- Invalid or stale pulses on any mapped input disarm all outputs and request each configured stop pulse. Restoring signal does not automatically rearm.
+- Boot/reset starts with stopped outputs. All outputs enable automatically only after every mapped receiver input is healthy and held at neutral for one second; there are no manual arm/disarm controls.
+- Invalid or stale pulses on any mapped input stop all outputs. After restoration, every input must remain healthy and neutral for a fresh one-second dwell before control resumes automatically.
 - Permit shared receiver inputs, reject duplicate outputs, reject input/output pin overlap across mappings, and reject Pico PWM channel aliases (output GPIOs 16 apart). Initialize each Pico PWM slice once so two outputs using its different channels retain independent pulse widths.
 - Bidirectional stop is the configured output neutral. Forward-only stop is output minimum.
-- Configuration changes and flash saves are rejected while armed. Applying settings and saving to flash remain separate actions.
+- Configuration changes, names and flash saves require inactive outputs or all active inputs held neutral for one second. Applying settings and saving remain separate; each accepted mutation stops outputs and resets neutral dwell.
 - Keep clamp and scaled mappings, independent forward/reverse limits, inversion, deadband, pin validation and calibrated endpoints consistent across firmware, GUI and documentation.
-- An app disconnect is not an independent firmware failsafe trigger. Do not promise that a dropped USB/Bluetooth connection stops an armed board.
+- An app disconnect is not an independent firmware failsafe trigger. Do not promise that a dropped USB/Bluetooth connection stops an active board.
 - Receiver RF loss can leave valid pulses present. Document and test the receiver's own failsafe; pulse validity alone does not establish a healthy radio link.
 - Hardware PWM can retain its last command during a stalled main loop until watchdog recovery. Do not describe the normal receiver timeout as a guaranteed bound for every fault.
 - C3 RC pins are only 0, 1, 3, 4, 5, 6, 7, 10; exclude straps 2/8/9, native USB 18/19 and UART 20/21. C3 uses 14-bit LEDC, original ESP32 16-bit. Keep GPIO4–7 free when external JTAG is needed.
@@ -119,3 +119,5 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 GitHub Pages deploys `web/` through `.github/workflows/pages.yml` only from main after checks and static ZIP validation. PRs validate without deployment. Keep the README ZIP download and independent `app-web` CI artifact available. Preserve relative paths and the `/rc-limit/` integration test. Repository Pages source must be configured as GitHub Actions.
 
 Stable firmware in web distributions must come from the latest published non-prerelease GitHub release and pass SHA256SUMS validation. Never relabel main/nightly builds as stable. Keep the tracked UI-only snapshot separate from CI overlays under ignored `web/firmware/stable/`. Pages and app-web distributions must contain all four firmware packages; source ZIP checks run before the overlay. Publishing updates only the standalone web asset/checksum on mutable releases and must preserve firmware hashes and signed tags.
+
+English/Czech UI translations share `web/i18n/cs.json`. Run `python3 scripts/sync-translations.py` after catalog changes to regenerate native Android resources, and `--check` to verify them. Preserve wire keys, device names and profile values across language changes.

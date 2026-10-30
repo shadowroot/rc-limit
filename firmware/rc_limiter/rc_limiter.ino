@@ -108,7 +108,7 @@ void writeOutputs() {
   }
 }
 void attachHardware() {
-  bank=rc::Bank{}; bank.disarm(mappings);
+  bank=rc::Bank{}; bank.reset(mappings);
 #if defined(ARDUINO_ARCH_ESP32)
   for(int i=0;i<mappings.count;i++) {
     ledcSetup(i,50,PWM_BITS);
@@ -243,8 +243,9 @@ void response(Stream& io,const char* error=nullptr) {
 #endif
   doc["device_name"]=deviceName;doc["device_id"]=deviceId;
   doc["name_pending_restart"]=BOARD!=rc::Board::Pico && strcmp(deviceName,bootName)!=0;
-  doc["protocol_version"]=2; doc["max_mappings"]=rc::MAX_MAPPINGS;
-  doc["armed"]=bank.armed; doc["signal_ok"]=bank.healthy;
+  doc["control_mode"]="automatic_neutral";doc["active"]=bank.active;doc["configurable"]=bank.configurable(mappings,micros());
+  doc["protocol_version"]=3; doc["max_mappings"]=rc::MAX_MAPPINGS;
+  doc["armed"]=bank.active; doc["signal_ok"]=bank.healthy;
   // Legacy clients can still inspect channel 1. Legacy set cannot erase multiple mappings.
   doc["input_us"]=samples[0].pulse; doc["output_us"]=bank.outputs[0];
   encode(doc["config"].to<JsonObject>(),mappings.channels[0]);
@@ -254,7 +255,7 @@ void response(Stream& io,const char* error=nullptr) {
   for(int i=0;i<mappings.count;i++) {
     JsonObject state=states.add<JsonObject>();
     state["input_us"]=samples[i].pulse; state["output_us"]=bank.outputs[i];
-    state["signal_ok"]=bank.channels[i].healthy; state["armed"]=bank.channels[i].armed;
+    state["signal_ok"]=bank.channels[i].healthy; state["active"]=bank.channels[i].active;state["armed"]=bank.channels[i].active;
   }
   JsonObject transports=doc["transports"].to<JsonObject>();
   transports["usb_serial"]=true; transports["bluetooth_serial"]=bluetoothStarted;
@@ -281,12 +282,12 @@ void command(Stream& io,const char* line) {
   const char* cmd=doc["cmd"] | "";
   update();
   if(!strcmp(cmd,"get")) { response(io); return; }
-  if(!strcmp(cmd,"disarm")) { bank.disarm(mappings); writeOutputs(); response(io); return; }
-  if(!strcmp(cmd,"arm")) { bool ok=bank.arm(mappings,micros()); response(io,ok?nullptr:"hold_all_neutral_for_1s"); return; }
-  if(bank.armed) { response(io,"disarm_first"); return; }
+  if(!strcmp(cmd,"arm") || !strcmp(cmd,"disarm")) {response(io,"automatic_control");return;}
+  if((!strcmp(cmd,"set") || !strcmp(cmd,"set_mappings") || !strcmp(cmd,"save") || !strcmp(cmd,"set_name")) && !bank.configurable(mappings,micros())) {response(io,"hold_all_neutral_for_1s");return;}
   if(!strcmp(cmd,"set_name")) {
     const char* name=doc["name"].is<const char*>()?doc["name"].as<const char*>():nullptr;
     if(!identity::valid(name) || strstr(line,"\\u0000")) {response(io,"invalid_name");return;}
+    bank.reset(mappings);writeOutputs();
     response(io,renameDevice(name)?nullptr:"name_save_failed");return;
   }
   if(!strcmp(cmd,"set") || !strcmp(cmd,"set_mappings")) {
@@ -299,7 +300,7 @@ void command(Stream& io,const char* line) {
     attachHardware(); response(io); return;
   }
   if(!strcmp(cmd,"save")) {
-    bank.disarm(mappings); writeOutputs();
+    bank.reset(mappings); writeOutputs();
     stored=saveConfig(); response(io,stored?nullptr:"save_failed"); return;
   }
   response(io,"unknown_command");

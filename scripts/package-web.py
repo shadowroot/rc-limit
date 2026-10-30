@@ -9,7 +9,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ('index.html', 'style.css', 'app.mjs', 'protocol.mjs', 'ble.mjs', 'boards.mjs',
-          'hardware/boards.json', 'dist/updater.mjs', 'dist/updater.mjs.LEGAL.txt',
+          'hardware/boards.json', 'i18n.mjs', 'i18n/cs.json', 'dist/updater.mjs', 'dist/updater.mjs.LEGAL.txt',
           'dist/third-party-licenses.txt', 'firmware/catalog.json')
 README = '''RC Limit static web UI
 

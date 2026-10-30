@@ -80,7 +80,7 @@ void writeOutputs() {
     }
 }
 void attachHardware() {
-    bank=rc::Bank{};bank.disarm(mappings);
+    bank=rc::Bank{};bank.reset(mappings);
     ledc_timer_config_t timer={};timer.speed_mode=LEDC_LOW_SPEED_MODE;
     timer.duty_resolution=static_cast<ledc_timer_bit_t>(PWM_BITS);timer.timer_num=LEDC_TIMER_0;
     timer.freq_hz=50;timer.clk_cfg=LEDC_AUTO_CLK;ESP_ERROR_CHECK(ledc_timer_config(&timer));
@@ -160,8 +160,10 @@ void response(io::Port& port,int id,const char* error=nullptr) {
     cJSON_AddStringToObject(doc,"board",BOARD_NAME);cJSON_AddStringToObject(doc,"framework","esp-idf");
     cJSON_AddStringToObject(doc,"device_name",deviceName);cJSON_AddStringToObject(doc,"device_id",deviceId);
     cJSON_AddBoolToObject(doc,"name_pending_restart",strcmp(deviceName,bootName)!=0);
-    cJSON_AddNumberToObject(doc,"protocol_version",2);cJSON_AddNumberToObject(doc,"max_mappings",rc::MAX_MAPPINGS);
-    cJSON_AddBoolToObject(doc,"armed",bank.armed);cJSON_AddBoolToObject(doc,"signal_ok",bank.healthy);
+    cJSON_AddStringToObject(doc,"control_mode","automatic_neutral");
+    cJSON_AddBoolToObject(doc,"active",bank.active);cJSON_AddBoolToObject(doc,"configurable",bank.configurable(mappings,static_cast<uint32_t>(esp_timer_get_time())));
+    cJSON_AddNumberToObject(doc,"protocol_version",3);cJSON_AddNumberToObject(doc,"max_mappings",rc::MAX_MAPPINGS);
+    cJSON_AddBoolToObject(doc,"armed",bank.active);cJSON_AddBoolToObject(doc,"signal_ok",bank.healthy);
     cJSON_AddNumberToObject(doc,"input_us",samples[0].pulse);cJSON_AddNumberToObject(doc,"output_us",bank.outputs[0]);
     cJSON_AddNumberToObject(doc,"revision",revision);cJSON_AddBoolToObject(doc,"saved",stored);
     cJSON_AddItemToObject(doc,"config",codec::channel(mappings.channels[0]));
@@ -170,7 +172,7 @@ void response(io::Port& port,int id,const char* error=nullptr) {
     for(int i=0;i<mappings.count;i++) {
         cJSON* state=cJSON_CreateObject();cJSON_AddItemToArray(states,state);
         cJSON_AddNumberToObject(state,"input_us",samples[i].pulse);cJSON_AddNumberToObject(state,"output_us",bank.outputs[i]);
-        cJSON_AddBoolToObject(state,"signal_ok",bank.channels[i].healthy);cJSON_AddBoolToObject(state,"armed",bank.channels[i].armed);
+        cJSON_AddBoolToObject(state,"signal_ok",bank.channels[i].healthy);cJSON_AddBoolToObject(state,"active",bank.channels[i].active);cJSON_AddBoolToObject(state,"armed",bank.channels[i].active);
     }
     cJSON* transports=cJSON_AddObjectToObject(doc,"transports");
     cJSON_AddBoolToObject(transports,"usb_serial",true);cJSON_AddBoolToObject(transports,"bluetooth_serial",io::radioReady.load());
@@ -191,14 +193,13 @@ void command(io::Port& port,const char* line) {
     const cJSON* item=cJSON_GetObjectItemCaseSensitive(doc,"cmd");const char* cmd=cJSON_IsString(item)?item->valuestring:"";
     update();const char* error=nullptr;
     if(!strcmp(cmd,"get")) {}
-    else if(!strcmp(cmd,"disarm")) {bank.disarm(mappings);writeOutputs();}
-    else if(!strcmp(cmd,"arm")) {if(!bank.arm(mappings,static_cast<uint32_t>(esp_timer_get_time()))) error="hold_all_neutral_for_1s";}
-    else if(bank.armed) error="disarm_first";
+    else if(!strcmp(cmd,"arm") || !strcmp(cmd,"disarm")) error="automatic_control";
+    else if((!strcmp(cmd,"set") || !strcmp(cmd,"set_mappings") || !strcmp(cmd,"save") || !strcmp(cmd,"set_name")) && !bank.configurable(mappings,static_cast<uint32_t>(esp_timer_get_time()))) error="hold_all_neutral_for_1s";
     else if(!strcmp(cmd,"set_name")) {
         const cJSON* value=cJSON_GetObjectItemCaseSensitive(doc,"name");
         const char* name=cJSON_IsString(value)?value->valuestring:nullptr;
         if(!identity::valid(name) || strstr(line,"\\u0000")) error="invalid_name";
-        else if(!renameDevice(name)) error="name_save_failed";
+        else {bank.reset(mappings);writeOutputs();if(!renameDevice(name)) error="name_save_failed";}
     }
     else if(!strcmp(cmd,"set") || !strcmp(cmd,"set_mappings")) {
         rc::MappingSet next;bool valid=false;
@@ -208,7 +209,7 @@ void command(io::Port& port,const char* line) {
         } else {valid=codec::mappings(cJSON_GetObjectItemCaseSensitive(doc,"mappings"),BOARD,next);if(!valid) error="invalid_mappings";}
         if(valid) {detachHardware();mappings=next;revision++;stored=false;attachHardware();}
     } else if(!strcmp(cmd,"save")) {
-        bank.disarm(mappings);writeOutputs();stored=saveConfig();if(!stored) error="save_failed";
+        bank.reset(mappings);writeOutputs();stored=saveConfig();if(!stored) error="save_failed";
     } else error="unknown_command";
     cJSON_Delete(doc);response(port,id,error);
 }
