@@ -25,6 +25,9 @@ class WebPackageTests(unittest.TestCase):
                 self.assertIn('README.txt', archive.namelist())
                 self.assertIn('web/BUILD.json', archive.namelist())
                 self.assertIn('web/dist/updater.mjs', archive.namelist())
+                self.assertIn('web/sw.js', archive.namelist())
+                self.assertIn('web/manifest.webmanifest', archive.namelist())
+                self.assertIn('web/icons/maskable-512.png', archive.namelist())
                 self.assertIsNone(archive.testzip())
             # Different ZIP compression must not trigger a stale-source error.
             rewritten = io.BytesIO()

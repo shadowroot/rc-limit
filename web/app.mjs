@@ -1,8 +1,10 @@
+import { initPwa } from './pwa.mjs';
 import { t, bindText, initLanguage } from './i18n.mjs';
 import { fields, defaults, validateDeviceName, validate, validateMappings, profile, nextMapping, Protocol } from './protocol.mjs';
 import { openBle } from './ble.mjs';
 import { loadBoardProfiles, drawBoard, boardForFirmware } from './boards.mjs';
 await initLanguage();
+initPwa();
 const $ = id => document.getElementById(id);
 const controls = {};
 const selects = { bidirectional: ['Forward only', 'Bidirectional'], scale: ['Clamp at limit', 'Scale full stick travel'], invert: ['Normal', 'Inverted'] };
@@ -130,7 +132,7 @@ async function activateConnection(current) {
 }
 async function connect() {
   if (updatingFirmware) return;
-  if (!navigator.serial) { message('Web Serial is unavailable. Use desktop Chrome/Edge, Electron, or the native Android app.'); return; }
+  if (!navigator.serial) { message('Web Serial is unavailable. Use a supported browser or Electron for USB / Classic serial, or connect a C3 over BLE.'); return; }
   connecting = true; deviceButtons(false);
   try {
     port = await navigator.serial.requestPort({ allowedBluetoothServiceClassIds: ['00001101-0000-1000-8000-00805f9b34fb'] });

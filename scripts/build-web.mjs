@@ -10,3 +10,6 @@ for (const [name, file] of [['esptool-js', 'LICENSE'], ['pako', 'LICENSE'], ['at
   licenses.push(`${name} ${metadata.version}\n${await readFile(`node_modules/${name}/${file}`, 'utf8')}`);
 }
 await writeFile('web/dist/third-party-licenses.txt', licenses.join('\n\n'));
+
+const { buildPwa } = await import('./build-pwa.mjs');
+await buildPwa();

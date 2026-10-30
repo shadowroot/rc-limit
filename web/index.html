@@ -3,11 +3,13 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'">
+  <meta name="theme-color" content="#101719"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icons/icon-192.png">
   <title>RC Limit · Workshop</title><link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header><a class="brand" href="#"><span class="mark">↔</span> RC LIMIT <small>WORKSHOP / 01</small></a><label class="language-picker"><span>Language</span><select id="language-select" aria-label="Language"><option value="en">English</option><option value="cs">Čeština</option></select></label><span class="tag">PICO + ESP32</span></header>
   <main>
+    <div class="pwa-bar"><button id="install-app">Install app</button><p id="pwa-status" role="status">Install from your browser menu for an app window and offline settings.</p></div>
     <section class="intro"><div><p class="eyebrow">RECEIVER → LIMITER → ESC</p><h1>A little less throttle.<br>A lot more control.</h1><p>Set the envelope for your bidirectional ESC. Keep the radio in control.</p></div>
       <aside><span class="status-dot" id="dot"></span><strong id="connection">OFFLINE</strong><p id="board">USB: Pico / ESP32 / C3<br>Wireless: ESP32 SPP / C3 BLE</p><p id="transports">Names shown after connecting · BLE uses NUS discovery</p><button id="connect" class="primary">Connect USB / Classic serial ↗</button><button id="connect-ble">Connect C3 BLE serial ↗</button><button id="disconnect" disabled>Disconnect</button></aside>
     </section>

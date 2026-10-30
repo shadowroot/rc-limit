@@ -9,7 +9,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ('index.html', 'style.css', 'app.mjs', 'protocol.mjs', 'ble.mjs', 'boards.mjs',
-          'hardware/boards.json', 'i18n.mjs', 'i18n/cs.json', 'dist/updater.mjs', 'dist/updater.mjs.LEGAL.txt',
+          'firmware.mjs', 'stable.mjs', 'pwa.mjs', 'sw.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'hardware/boards.json', 'i18n.mjs', 'i18n/cs.json', 'dist/updater.mjs', 'dist/updater.mjs.LEGAL.txt',
           'dist/third-party-licenses.txt', 'firmware/catalog.json')
 README = '''RC Limit static web UI
 
@@ -24,6 +24,9 @@ Open http://localhost:8080 in desktop Chrome or Edge.
 Keep the server running while configuring boards. Do not double-click index.html:
 JavaScript modules/device APIs require localhost or HTTPS.
 You may also upload web/ to a static HTTPS host of your choice.
+Use Install app / Add to Home screen to install the PWA. After its first online
+visit, the interface works offline; firmware downloads still need the network.
+Device support depends on the browser/OS; installation does not add device APIs.
 
 USB/Bluetooth availability depends on the browser and OS. Connect devices only
 through the explicit device chooser. Firmware flashing requires disconnected
