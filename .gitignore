@@ -25,6 +25,7 @@ web/dist/
 
 # Stable release firmware is downloaded into distribution builds.
 web/firmware/stable/
+web/firmware/development/
 
 # Generated PWA worker (build:web/package:web)
 /web/sw.js

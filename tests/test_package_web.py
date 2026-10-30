@@ -1,4 +1,6 @@
 import importlib.util
+import hashlib
+import json
 import io
 from pathlib import Path
 import tempfile
@@ -18,7 +20,7 @@ class WebPackageTests(unittest.TestCase):
             for name in web.ASSETS:
                 file = root / 'web' / name
                 file.parent.mkdir(parents=True, exist_ok=True)
-                file.write_text('{"version":1,"release":null,"boards":[]}' if name == "firmware/catalog.json" else name)
+                file.write_text('{"version":1,"release":null,"boards":[]}' if name in ("firmware/catalog.json", "firmware/development-catalog.json") else name)
             original = web.bundle(root)
             self.assertEqual(original, web.bundle(root))
             with zipfile.ZipFile(io.BytesIO(original)) as archive:
@@ -42,13 +44,35 @@ class WebPackageTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 web.bundle(root)
 
+    def test_development_catalog_is_packaged_separately_and_detects_corruption(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in web.ASSETS:
+                file = root / 'web' / name
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_text('{"version":1,"release":null,"boards":[]}' if name.endswith('catalog.json') else name)
+            rows = []
+            for board in ('pico', 'esp32', 'esp32c3', 'esp32c3-devkit'):
+                name = f'development/rc-limit-{board}.zip'
+                file = root / 'web/firmware' / name
+                file.parent.mkdir(parents=True, exist_ok=True)
+                data = board.encode();file.write_bytes(data)
+                rows.append({'board':board,'file':name,'size':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+            (root / 'web/firmware/development-catalog.json').write_text(json.dumps({'version':1,'release':{'tag':'dev-1'},'boards':rows}))
+            with zipfile.ZipFile(io.BytesIO(web.bundle(root))) as archive:
+                self.assertIn('web/firmware/development/rc-limit-pico.zip', archive.namelist())
+                self.assertEqual(json.loads(archive.read('web/firmware/catalog.json'))['release'], None)
+            (root / 'web/firmware/development/rc-limit-pico.zip').write_bytes(b'corrupt')
+            with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
+                web.bundle(root)
+
     def test_partial_stable_firmware_catalog_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in web.ASSETS:
                 file = root / 'web' / name
                 file.parent.mkdir(parents=True, exist_ok=True)
-                file.write_text(name)
+                file.write_text('{"version":1,"release":null,"boards":[]}' if name.endswith('catalog.json') else name)
             (root / 'web/firmware/catalog.json').write_text('{"version":1,"release":{"tag":"v1"},"boards":[{"board":"pico"}]}')
             with self.assertRaisesRegex(ValueError, 'all four'):
                 web.bundle(root)

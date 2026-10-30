@@ -12,6 +12,7 @@ on:
       - 'scripts/service-worker.js'
       - 'scripts/package-web.py'
       - 'scripts/fetch-stable-firmware.py'
+      - 'scripts/fetch-development-firmware.py'
       - 'scripts/publish-stable-web.py'
       - 'downloads/rc-limit-web.zip'
       - 'scripts/check.sh'
@@ -27,6 +28,7 @@ on:
       - 'scripts/service-worker.js'
       - 'scripts/package-web.py'
       - 'scripts/fetch-stable-firmware.py'
+      - 'scripts/fetch-development-firmware.py'
       - 'scripts/publish-stable-web.py'
       - 'downloads/rc-limit-web.zip'
       - 'scripts/check.sh'
@@ -71,7 +73,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/fetch-stable-firmware.py
-      - name: Package standalone web UI with stable firmware
+      - name: Bundle latest development prerelease
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/fetch-development-firmware.py
+      - name: Package standalone web UI with firmware
         run: python3 scripts/package-web.py
       - name: Expose the standalone ZIP on the static site
         run: cp build/releases/rc-limit-web.zip web/rc-limit-web.zip

@@ -8,7 +8,7 @@ This limits the ESC command, not measured motor speed, current, torque, or power
 
 Firmware uses **PlatformIO**, with **native ESP-IDF** on ESP32/C3 and Arduino-Pico on Pico. [CI and releases](docs/releases.md) provide firmware, Linux/Windows desktop and web PWA downloads. Successful `main` builds publish [development prereleases](https://github.com/shadowroot/rc-limit/releases); reviewed `v*` tags remain the stable-release path.
 
-Use **Update firmware over USB** in the web/Electron GUI to verify a release ZIP and flash ESP32/C3, or export a Pico BOOTSEL UF2. See [firmware updates](docs/firmware-updates.md).
+Use **Update firmware over USB** in the web/Electron GUI to load a bundled stable release or clearly labeled development prerelease, verify a release ZIP and flash ESP32/C3, or export a Pico BOOTSEL UF2. See [firmware updates](docs/firmware-updates.md).
 
 **Pico UF2 install:** Disconnect motor power. Hold **BOOTSEL** while plugging in USB, then copy the extracted/exported **`.uf2` file** (not the ZIP) onto **RPI-RP2**. The Pico reboots automatically.
 

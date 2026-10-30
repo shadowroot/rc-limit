@@ -22,7 +22,7 @@ Chrome documents [Web Bluetooth availability](https://developer.chrome.com/docs/
 
 The service worker caches a versioned copy of the interface, all configuration code, board diagrams, Czech catalog, icons and the lazy firmware validator/updater. Profiles still import/export as ordinary JSON files. A firmware ZIP already saved on the device can be loaded and verified offline.
 
-Stable firmware catalogs and firmware ZIP downloads always use the network. They are not served from the interface cache, so offline mode cannot silently replace a newly published release with an old cached one. Download a matching ZIP while online if you will need it later.
+Stable and development firmware catalogs and bundled firmware ZIP requests always use the network. They are not served from the interface cache, so offline mode cannot silently replace a newly published release with an old cached one. Download a matching ZIP while online if you will need it later.
 
 App updates install in the background and wait while any tab/window using the app remains open. When **App update ready** appears, finish configuration/flashing, then close **all** RC Limit browser tabs and installed windows before reopening. There is no forced reload, activation button or automatic reconnection to hardware. The current page and its cached assets keep the same version throughout a session.
 

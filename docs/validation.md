@@ -1,5 +1,9 @@
 # Verification record
 
+## Firmware visibility in the web app (2026-10-30)
+
+The stable catalog was empty because only a development prerelease existed. The published prerelease `dev-22-d1956ced9215` was downloaded and its outer SHA-256 sums, four board ZIPs and updater manifests validated. Chromium loaded the real C3 package through the development selector from a packaged web distribution, verified it without hardware, and confirmed that the flashing control stayed disabled until acknowledgement. Repository tests cover channel separation, malformed/missing packages and checksums; PWA offline/update behavior and Electron startup also passed. No physical board was flashed.
+
 ## Automatic release correction (2026-10-30)
 
 The hosted PWA main build `41017131592` passed every check/build job but skipped `release`: only version-tag pushes matched the old condition, and the repository had no tags/releases. The workflow now publishes complete development prereleases after successful main builds, while preserving reviewed version-tag drafts and stable firmware selection. Actionlint and eight mocked publication tests passed: full asset gating, exact source targeting, main/manual-main versus feature/PR permissions, draft-before-upload ordering, upload failure, API error, draft resumption and published-release preservation. These tests do not contact GitHub or publish binaries.

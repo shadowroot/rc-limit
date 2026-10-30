@@ -10,7 +10,7 @@ const { execFileSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 async function main() {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'rc-limit-pwa-'));
-  execFileSync('python3', ['-m','zipfile','-e',path.join(root,'downloads/rc-limit-web.zip'),directory]);
+  execFileSync('python3', ['-m','zipfile','-e',(process.env.RC_LIMIT_WEB_ZIP || path.join(root,'downloads/rc-limit-web.zip')),directory]);
   let revision = 1;
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
@@ -42,6 +42,19 @@ async function main() {
     const installability = await client.send('Page.getInstallabilityErrors');
     assert.deepEqual(installability.installabilityErrors,[]);
     await page.reload();await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
+    const bundledDevelopment = JSON.parse(await fs.readFile(path.join(directory,'web/firmware/development-catalog.json'),'utf8'));
+    if (bundledDevelopment.release) {
+      await page.locator('#firmware-update summary').click();
+      await page.locator('#update-board').selectOption('esp32c3');
+      await page.waitForFunction(() => !document.getElementById('development-firmware-use').disabled);
+      assert.match(await page.locator('#development-firmware-status').textContent(), /development prerelease/i);
+      assert.match(await page.locator('#development-firmware-download').getAttribute('href'), /development\/rc-limit-esp32c3\.zip/);
+      await page.locator('#development-firmware-use').click();
+      await page.waitForFunction(() => document.getElementById('update-status').textContent.includes('Verified esp32c3'));
+      assert.equal(await page.locator('#update-flash').isDisabled(),true);
+      await page.locator('#firmware-update summary').click();
+    }
+
     await page.locator('#language-select').selectOption('cs');
     // The packaged source and built lazy updater must both work without networking.
     await context.setOffline(true);await page.reload();await page.waitForSelector('#bidirectional');
@@ -50,7 +63,8 @@ async function main() {
     assert.equal(await page.locator('#board-layout option').count(),4);
     await page.locator('#firmware-update summary').click();
     await page.waitForFunction(()=>!document.getElementById('update-check').disabled);
-    assert.equal(await page.evaluate(()=>fetch('firmware/catalog.json').then(()=>true,()=>false)),false);
+    for (const catalog of ['firmware/catalog.json','firmware/development-catalog.json'])
+      assert.equal(await page.evaluate(name=>fetch(name).then(()=>true,()=>false),catalog),false);
     await page.locator('#language-select').selectOption('en');
     await context.setOffline(false);revision=2;
     await page.evaluate(async()=>{await (await navigator.serviceWorker.getRegistration()).update();});

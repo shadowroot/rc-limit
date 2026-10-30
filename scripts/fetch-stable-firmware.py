@@ -42,9 +42,11 @@ def reader(token):
     return fetch
 
 
-def collect(release, fetch):
-    if release.get('draft') or release.get('prerelease') or not release.get('published_at'):
-        raise ValueError('Only published, non-prerelease firmware can be bundled as stable.')
+def collect(release, fetch, channel='stable'):
+    if channel not in ('stable', 'development'):
+        raise ValueError('Invalid firmware channel.')
+    if release.get('draft') or bool(release.get('prerelease')) != (channel == 'development') or not release.get('published_at'):
+        raise ValueError('Firmware release does not match its published channel.')
     tag = release.get('tag_name')
     if not isinstance(tag, str) or not tag:
         raise ValueError('Release tag is missing.')
@@ -98,23 +100,25 @@ def collect(release, fetch):
                         raise ValueError('Invalid component checksum/offset in update manifest.')
                 supported = True
                 commit = manifest.get('commit')
-        files['stable/' + name] = data
-        boards.append({'board': board, 'file': 'stable/' + name, 'sha256': digest,
+        files[channel + '/' + name] = data
+        boards.append({'board': board, 'file': channel + '/' + name, 'sha256': digest,
                        'size': len(data), 'updater_supported': supported, 'commit': commit})
     catalog = {'version': 1, 'release': {'tag': tag, 'url': release['html_url'],
                'published_at': release['published_at']}, 'boards': boards}
     return catalog, files
 
 
-def write(output, catalog, files):
+def write(output, catalog, files, channel='stable'):
     output.mkdir(parents=True, exist_ok=True)
-    stable = output / 'stable'
-    stable.mkdir(exist_ok=True)
-    for old in stable.glob('rc-limit-*.zip'):
+    if channel not in ('stable', 'development'):
+        raise ValueError('Invalid firmware channel.')
+    target = output / channel
+    target.mkdir(exist_ok=True)
+    for old in target.glob('rc-limit-*.zip'):
         old.unlink()
     for name, data in files.items():
         (output / name).write_bytes(data)
-    (output / 'catalog.json').write_text(json.dumps(catalog, indent=2) + '\n')
+    (output / ('catalog.json' if channel == 'stable' else 'development-catalog.json')).write_text(json.dumps(catalog, indent=2) + '\n')
 
 
 def main():

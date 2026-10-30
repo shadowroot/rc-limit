@@ -19,3 +19,11 @@ test('bundled downloads resolve under the static subpath and verify checksums', 
   assert.equal(requested,'https://example.test/rc-limit/firmware/stable/rc-limit-pico.zip');
   await assert.rejects(fetchStablePackage({...item,sha256:'0'.repeat(64)},'https://example.test/',request),/checksum/);
 });
+
+test('development and stable catalogs use separate validated paths', () => {
+  const boards = ['pico','esp32','esp32c3','esp32c3-devkit'].map(board => ({board,file:`development/rc-limit-${board}.zip`,size:1,sha256:'a'.repeat(64)}));
+  const catalog = {version:1,release:{tag:'dev-22'},boards};
+  assert.equal(validateCatalog(catalog,'development').release.tag,'dev-22');
+  assert.throws(() => validateCatalog(catalog,'stable'));
+  assert.throws(() => validateCatalog({...catalog,boards:[{...boards[0],file:'../stable/rc-limit-pico.zip'},...boards.slice(1)]},'development'));
+});

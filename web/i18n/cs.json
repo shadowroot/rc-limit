@@ -334,5 +334,17 @@
   "Installation was unavailable. Try Install app in your browser menu.": "Instalace nebyla dostupná. Zkuste Nainstalovat aplikaci v nabídce prohlížeče.",
   "App update ready. Finish configuration or flashing, then close all app windows and reopen to update.": "Je připravena aktualizace. Dokončete nastavení nebo nahrávání firmwaru, pak zavřete všechna okna aplikace a znovu ji otevřete.",
   "Interface ready offline. Firmware downloads need an internet connection.": "Rozhraní je připraveno bez internetu. Stažení firmwaru vyžaduje připojení k internetu.",
-  "Offline setup unavailable. The app can still run online; build web assets and reload to retry.": "Příprava pro použití bez internetu není dostupná. Aplikace funguje online; sestavte webové soubory a načtěte stránku znovu."
+  "Offline setup unavailable. The app can still run online; build web assets and reload to retry.": "Příprava pro použití bez internetu není dostupná. Aplikace funguje online; sestavte webové soubory a načtěte stránku znovu.",
+  "Checking bundled development firmware…": "Kontrola přiloženého vývojového firmwaru…",
+  "Download development firmware ZIP": "Stáhnout ZIP vývojového firmwaru",
+  "Use development firmware": "Použít vývojový firmware",
+  "Development firmware is a prerelease from the latest successful build and may not have been tested on hardware.": "Vývojový firmware pochází z předběžného vydání posledního úspěšného sestavení a nemusí být otestován na hardwaru.",
+  "Bundled development prerelease: {version}. Choose your exact board.": "Přiložené vývojové vydání: {version}. Vyberte přesný typ desky.",
+  "No published development firmware is bundled.": "Není přiloženo žádné publikované vývojové vydání firmwaru.",
+  "Bundled development prerelease: {version}. ": "Přiložené vývojové vydání: {version}. ",
+  "Development catalog unavailable.": "Katalog vývojových vydání není dostupný.",
+  "Invalid firmware channel.": "Neplatný kanál firmwaru.",
+  "Invalid firmware catalog.": "Neplatný katalog firmwaru.",
+  "Incomplete firmware catalog.": "Neúplný katalog firmwaru.",
+  "Invalid firmware package.": "Neplatný balíček firmwaru."
 }
