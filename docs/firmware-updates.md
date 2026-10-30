@@ -2,7 +2,7 @@
 
 Open **Update firmware over USB** below the configuration controls. On Pages or the standalone stable web ZIP, choose your exact board and click **Use bundled stable firmware** to load the included stable package, or use its download link. The displayed tag identifies the release. Manual ZIP selection remains available in the web/Electron app. Download the firmware ZIP for your exact board from [RC Limit releases](https://github.com/shadowroot/rc-limit/releases), or from a successful Actions run. Extract the Actions artifact's outer ZIP to get the inner `rc-limit-BOARD.zip`; select that inner ZIP in the updater. Packages created before the update manifest was added are rejected; build/package a fresh bundle instead.
 
-1. Export your configuration profile, disarm, and disconnect the configuration session. Close other serial monitors/controllers.
+1. Remove motor power, export your configuration profile, stop the transmitter inputs, and disconnect the configuration session. Close other serial monitors/controllers.
 2. Disconnect motor power. Select the physical board model and its matching firmware ZIP.
 3. Click **Verify release ZIP**. Confirm the board/source commit and acknowledge the power/backup checkbox.
 4. For ESP32/C3, click **Choose USB port & flash**, select the actual USB device, and keep USB connected until verification completes. If automatic bootloader entry fails, hold BOOT and tap RESET; native USB may re-enumerate and need port selection again.
@@ -38,6 +38,6 @@ The optional `tests/firmware-ui-smoke.cjs` needs Playwright/Chromium and real ZI
 
 ## Naming boards after an update
 
-After reboot, connect the updated board, find **Device identity**, enter e.g. `Boat port ESC`, and click **Save device name** while disarmed. Native Android has the same name field/button. The name is saved immediately on the board, independently of throttle settings. Names remain through later updates that preserve the settings area. New/unnamed boards show a unique hardware-derived default and every reply also includes the stable hardware ID.
+After reboot, connect the updated board, find **Device identity**, enter e.g. `Boat port ESC`, and click **Save device name** while outputs are inactive or every input has been neutral for one second. Native Android has the same name field/button. The name is saved immediately on the board, independently of throttle settings. Names remain through later updates that preserve the settings area. New/unnamed boards show a unique hardware-derived default and every reply also includes the stable hardware ID.
 
 Restart a Bluetooth board with motor power disconnected to advertise `RC-` plus its new name. USB port-picker labels may remain generic; the app shows the custom name/ID after connecting. See [device identity protocol](protocol.md#device-identity-and-naming) for allowed characters and storage/downgrade details.

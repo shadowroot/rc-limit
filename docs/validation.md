@@ -1,5 +1,20 @@
 # Verification record
 
+## Automatic control and Czech UI (2026-10-30)
+
+The following checks cover protocol version 3 and replace the manual-arming behavior described in older records below:
+
+- Portable C++ tests with address/undefined-behavior sanitizers: automatic simultaneous activation after one-second neutral dwell, throttle rejection at boot, independent limits, stop-all on signal loss, neutral-gated recovery, mutation dwell reset and configuration lock during throttle passed.
+- All four PlatformIO firmware targets compiled: native ESP-IDF ESP32, C3 Super Mini, C3 DevKitM-1, and Arduino-Pico RP2040.
+- Repository checks, English/Czech catalog and placeholder checks, and generated Android resource consistency passed.
+- Native Android debug APK assembled with the shared Czech catalog; Android locale changes preserve draft fields and require a disconnected session. Runtime switching on a physical phone remains unverified.
+- Chromium integration with simulated USB/BLE passed: automatic-state telemetry, configuration lock during throttle, neutral configuration access, Czech switching without losing draft values or device identity, profiles, four mappings and responsive layout.
+- Electron startup/device chooser checks, Czech selection and remembered language after reload passed. Linux desktop packaging passed.
+- Updater tests under `/rc-limit/` passed with actual firmware ZIPs, consent gating, cancelled simulated USB selection and Pico UF2 export. The tracked standalone web ZIP was regenerated and checked.
+
+No hardware was connected or flashed. Automatic neutral-gated operation, actual pulse timing, receiver failsafe, flash/name persistence, and Czech Android behavior still require the physical checks in [commissioning.md](commissioning.md). The entries below record earlier revisions and do not establish physical validation of this change.
+
+
 Verified in this workspace on **2026-10-29**. No physical board, receiver, ESC, motor, or Android device was connected for testing.
 
 | Check | Result |

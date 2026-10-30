@@ -109,7 +109,7 @@ Pair Classic devices in Android settings first. BLE scans directly for the UART 
 
 ## Tests
 
-`bash scripts/check.sh` needs g++ and Node. It compiles the real portable mapping/arming code and exercises all pulse inputs across both modes, both mapping styles, both directions and percentage limits. JavaScript tests cover validation, fragmented serial replies, concurrent disarm/telemetry IDs, errors, timeouts and disconnects. It also syntax checks the browser and Electron scripts.
+`bash scripts/check.sh` needs g++ and Node. It compiles the real portable mapping/neutral-gating code and exercises all pulse inputs across both modes, both mapping styles, both directions and percentage limits. JavaScript tests cover validation, fragmented serial replies, concurrent command/telemetry IDs, errors, timeouts and disconnects. It also syntax checks the browser and Electron scripts.
 
 No firmware is flashed automatically by these build/test commands. See [validation.md](validation.md) for the checks actually performed in this workspace and [commissioning.md](commissioning.md) for hardware tests.
 

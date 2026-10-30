@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     private EditText deviceName;
     private Button renameButton;
     private String lastDeviceName="",lastDeviceId="";
-    private Button applyButton,saveButton,armButton;
+    private Button applyButton,saveButton;
     private UsbManager usb;
     private boolean active=false, ready=false, connecting=false;
     private UsbDevice requestedDevice;
@@ -52,7 +52,8 @@ public class MainActivity extends Activity {
     private Button addMappingButton,removeMappingButton;
     private int selectedMapping=0,protocolVersion=1;
     private String currentBoard="";
-    private boolean refreshingMappings=false,boardArmed=false;
+    private boolean refreshingMappings=false,canConfigure=true;
+    private Spinner languageSelector;
     private BluetoothLeScanner bleScanner;
     private ScanCallback bleScanCallback;
     private AlertDialog blePicker;
@@ -77,6 +78,22 @@ public class MainActivity extends Activity {
         }
     };
 
+    @Override protected void attachBaseContext(Context base) {
+        String system=base.getResources().getConfiguration().getLocales().get(0).getLanguage();
+        String lang=base.getSharedPreferences("rc-limit",MODE_PRIVATE).getString("language",system.equals("cs")?"cs":"en");
+        android.content.res.Configuration config=new android.content.res.Configuration(base.getResources().getConfiguration());
+        config.setLocale(new Locale(lang));super.attachBaseContext(base.createConfigurationContext(config));
+    }
+    private String tr(String value) {return Translations.text(this,value);}
+    private void changeLanguage(String lang) {
+        if(link!=null || connecting) {languageSelector.setSelection(getResources().getConfiguration().getLocales().get(0).getLanguage().equals("cs")?1:0);tell("Disconnect before changing language.");return;}
+        try {
+            JSONArray mappings=new JSONArray();for(JSONObject item:draftMappings) mappings.put(item);
+            JSONObject raw=new JSONObject();for(String key:KEYS) raw.put(key,fields.get(key).getText().toString());
+            getIntent().putExtra("languageDraft",new JSONObject().put("mappings",mappings).put("selected",selectedMapping).put("fields",raw).put("name",deviceName.getText().toString()).toString());
+        } catch(JSONException ignored) {}
+        getSharedPreferences("rc-limit",MODE_PRIVATE).edit().putString("language",lang).apply();recreate();
+    }
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved); usb=(UsbManager)getSystemService(USB_SERVICE);
         ScrollView scroll=new ScrollView(this);
@@ -88,8 +105,19 @@ public class MainActivity extends Activity {
             view.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),
                 insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom()); return insets;
         });
-        TextView title=new TextView(this); title.setText("RC LIMIT / WORKSHOP"); title.setTextSize(26); layout.addView(title);
+        TextView title=new TextView(this); title.setText(tr("RC LIMIT / WORKSHOP")); title.setTextSize(26); layout.addView(title);
         text(layout,"Bidirectional ESC configuration\nRemove propeller / unload drivetrain before setup.");
+        text(layout,"Language");languageSelector=new Spinner(this);
+        languageSelector.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"English","Čeština"}));
+        String selectedLanguage=getResources().getConfiguration().getLocales().get(0).getLanguage();
+        languageSelector.setSelection(selectedLanguage.equals("cs")?1:0);layout.addView(languageSelector);
+        languageSelector.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            public void onNothingSelected(AdapterView<?> parent) {}
+            public void onItemSelected(AdapterView<?> parent,View view,int position,long id) {
+                String next=position==1?"cs":"en";
+                if(!next.equals(getResources().getConfiguration().getLocales().get(0).getLanguage())) changeLanguage(next);
+            }
+        });
         status=text(layout,"OFFLINE · output state unknown");
         LinearLayout connections=row(layout);
         button(connections,"USB OTG",this::chooseUsb,false);
@@ -97,7 +125,7 @@ public class MainActivity extends Activity {
         button(connections,"BLE C3",this::chooseBle,false);
         button(connections,"Disconnect",()->disconnect(true),false);
         notice=text(layout,"Defaults shown until Read board. Pico: USB. Original ESP32: USB / Classic. C3: USB / BLE C3.");
-        deviceName=new EditText(this);deviceName.setSingleLine(true);deviceName.setHint("Device name (1–16 characters)");layout.addView(deviceName);
+        deviceName=new EditText(this);deviceName.setSingleLine(true);deviceName.setHint(tr("Device name (1–16 characters)"));layout.addView(deviceName);
         renameButton=button(row(layout),"Save device name",()->{
             String name=deviceName.getText().toString();
             if(!name.matches("[A-Za-z0-9 ._-]{1,16}") || name.startsWith(" ") || name.endsWith(" ")) {tell("Use 1–16 letters, numbers, spaces, dots, underscores or hyphens; no outer spaces.");return;}
@@ -127,7 +155,7 @@ public class MainActivity extends Activity {
             EditText input=new EditText(this); input.setSingleLine(true);
             input.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_SIGNED);
             input.setText(Integer.toString(DEFAULTS[i]));
-            input.setContentDescription(LABELS[i]); fields.put(KEYS[i],input); layout.addView(input);
+            input.setContentDescription(tr(LABELS[i])); fields.put(KEYS[i],input); layout.addView(input);
         }
         try { draftMappings.add(form()); refreshMappings(); } catch(JSONException error) { throw new IllegalStateException(error); }
         text(layout,"Scale uses the full stick travel within the limit. Clamp caps the original command. Limits are not measured speed or power.");
@@ -142,13 +170,19 @@ public class MainActivity extends Activity {
             catch(Exception error) { tell(error.getMessage()); }
         },true);
         saveButton=button(actions,"Save flash",()->send("save",null,data->tell("Saved to board flash.")),true);
-        LinearLayout run=row(layout);
-        armButton=button(run,"ARM ALL",()->send("arm",null,data->tell("All outputs armed within configured limits.")),true);
-        button(run,"DISARM ALL",()->send("disarm",null,data->tell("Board confirmed DISARM; all stop pulses active.")),true);
         LinearLayout profiles=row(layout);
         button(profiles,"Import JSON",this::importProfile,false);
         button(profiles,"Export JSON",this::exportProfile,false);
-        text(layout,"Hold every mapped receiver input at stop for 1 second before ARM ALL. Losing any input disarms all outputs. Shared inputs are allowed; outputs must be unique. App disconnect or backgrounding requests disarm but cannot guarantee delivery.");
+        text(layout,"Automatic control: hold every mapped receiver input at neutral for one second. Losing any input stops all outputs; return all inputs to neutral for one second to resume. App disconnect does not stop receiver control.");
+        String draft=getIntent().getStringExtra("languageDraft");
+        if(draft!=null) {
+            try {
+                JSONObject state=new JSONObject(draft);JSONArray mappings=state.getJSONArray("mappings");draftMappings.clear();
+                for(int i=0;i<mappings.length();i++) draftMappings.add(mappings.getJSONObject(i));selectedMapping=state.getInt("selected");refreshMappings();
+                JSONObject raw=state.getJSONObject("fields");for(String key:KEYS) fields.get(key).setText(raw.getString(key));
+                deviceName.setText(state.getString("name"));
+            } catch(JSONException ignored) {}getIntent().removeExtra("languageDraft");
+        }
         IntentFilter filter=new IntentFilter(USB_PERMISSION); filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
         // USB permission PendingIntent returns through a private explicit-package broadcast.
         if(Build.VERSION.SDK_INT>=33) registerReceiver(usbReceiver,filter,Context.RECEIVER_NOT_EXPORTED);
@@ -156,18 +190,18 @@ public class MainActivity extends Activity {
         enable(false);
     }
     private TextView text(LinearLayout parent,String value) {
-        TextView view=new TextView(this); view.setText(value); view.setTextSize(14); view.setPadding(0,12,0,8); parent.addView(view); return view;
+        TextView view=new TextView(this); view.setText(tr(value)); view.setTextSize(14); view.setPadding(0,12,0,8); parent.addView(view); return view;
     }
     private LinearLayout row(LinearLayout parent) {
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); parent.addView(row); return row;
     }
     private Button button(LinearLayout parent,String label,Runnable action,boolean device) {
-        Button button=new Button(this); button.setText(label); button.setTextSize(11);
+        Button button=new Button(this); button.setText(tr(label)); button.setTextSize(11);
         parent.addView(button,new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1));
         button.setOnClickListener(view->action.run()); if(device) deviceButtons.add(button); return button;
     }
-    private void tell(String message) { notice.setText(message==null?"Unknown error":message); }
-    private void enable(boolean enabled) { for(Button b:deviceButtons) b.setEnabled(enabled); }
+    private void tell(String message) { notice.setText(tr(message==null?"Unknown error":message)); }
+    private void enable(boolean enabled) { for(Button b:deviceButtons) b.setEnabled(enabled);languageSelector.setEnabled(link==null && !connecting); }
     private void fill(JSONObject config) throws JSONException {
         validate(config);
         for(String key:KEYS) fields.get(key).setText(Integer.toString(config.getInt(key)));
@@ -188,8 +222,8 @@ public class MainActivity extends Activity {
             }
             mappingSelector.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,labels));
             mappingSelector.setSelection(selectedMapping); fill(draftMappings.get(selectedMapping));
-            addMappingButton.setEnabled(!boardArmed && draftMappings.size()<4);
-            removeMappingButton.setEnabled(!boardArmed && draftMappings.size()>1);
+            addMappingButton.setEnabled(canConfigure && draftMappings.size()<4);
+            removeMappingButton.setEnabled(canConfigure && draftMappings.size()>1);
         } finally { refreshingMappings=false; }
     }
     private boolean allowedPin(int pin,boolean output) {
@@ -271,7 +305,7 @@ public class MainActivity extends Activity {
         for(int i=0;i<labels.length;i++) {
             UsbDevice d=drivers.get(i).getDevice(); labels[i]=d.getDeviceName()+String.format(Locale.ROOT," [%04x:%04x]",d.getVendorId(),d.getProductId());
         }
-        new AlertDialog.Builder(this).setTitle("Choose USB serial board").setItems(labels,(dialog,index)->{
+        new AlertDialog.Builder(this).setTitle(tr("Choose USB serial board")).setItems(labels,(dialog,index)->{
             UsbDevice device=drivers.get(index).getDevice();
             if(usb.hasPermission(device)) openUsb(device);
             else {
@@ -283,7 +317,7 @@ public class MainActivity extends Activity {
     }
     private void openUsb(UsbDevice device) {
         if(!active || link!=null || connecting) return;
-        connecting=true; int token=++generation;
+        connecting=true;languageSelector.setEnabled(false); int token=++generation;
         tell("Opening USB serial…");
         writes.execute(()->{
             UsbLink opened=null;
@@ -305,8 +339,8 @@ public class MainActivity extends Activity {
         if(devices.isEmpty()) { tell("Pair RC-Limiter in Android Bluetooth settings, then retry."); return; }
         String[] labels=new String[devices.size()];
         for(int i=0;i<labels.length;i++) labels[i]=devices.get(i).getName()+" · "+devices.get(i).getAddress();
-        new AlertDialog.Builder(this).setTitle("Choose paired ESP32 (SPP)").setItems(labels,(dialog,index)->{
-            connecting=true; int token=++generation; tell("Connecting Bluetooth…");
+        new AlertDialog.Builder(this).setTitle(tr("Choose paired ESP32 (SPP)")).setItems(labels,(dialog,index)->{
+            connecting=true;languageSelector.setEnabled(false); int token=++generation; tell("Connecting Bluetooth…");
             writes.execute(()->{
                 BluetoothSocket socket=null;
                 try {
@@ -327,17 +361,17 @@ public class MainActivity extends Activity {
             while((n=input.read(buffer))!=-1) bytes.write(buffer,0,n);
             JSONArray boards=new JSONArray(bytes.toString(StandardCharsets.UTF_8.name()));
             String[] labels=new String[boards.length()];for(int i=0;i<labels.length;i++) labels[i]=boards.getJSONObject(i).getString("name");
-            new AlertDialog.Builder(this).setTitle("Board layout reference").setItems(labels,(dialog,index)->{
+            new AlertDialog.Builder(this).setTitle(tr("Board layout reference")).setItems(labels,(dialog,index)->{
                 try {
-                    JSONObject b=boards.getJSONObject(index);StringBuilder text=new StringBuilder("Component/top view · USB at "+b.getString("usb")+"\n\n");
+                    JSONObject b=boards.getJSONObject(index);StringBuilder text=new StringBuilder(tr("Component/top view · USB at "+b.getString("usb"))+"\n\n");
                     JSONArray left=b.getJSONArray("left"),right=b.getJSONArray("right"),lp=b.getJSONArray("left_positions"),rp=b.getJSONArray("right_positions");
                     for(int i=0;i<left.length();i++) text.append(String.format(Locale.ROOT,"%-17s %s\n",lp.getString(i)+" "+left.getString(i),rp.getString(i)+" "+right.getString(i)));
-                    text.append("\nSuggested receiver → ESC GPIOs:\n");JSONArray pairs=b.getJSONArray("pairs");
+                    text.append("\n").append(tr("Suggested receiver → ESC GPIOs:")).append("\n");JSONArray pairs=b.getJSONArray("pairs");
                     for(int i=0;i<pairs.length();i++) {JSONArray pair=pairs.getJSONArray(i);text.append(pair.getInt(0)).append(" → ").append(pair.getInt(1)).append("\n");}
-                    text.append("\n").append(b.getString("notes")).append("\n\nAll GPIOs are 3.3 V, not 5 V tolerant. For a confirmed 5 V PWM signal: receiver → 4.7 kΩ → GPIO, plus 6.8 kΩ from GPIO to ground (1% resistors): about 2.96 V. A 3.3 V signal becomes 1.95 V and may not register. Prefer SN74LVC1G17 at 3.3 V if power sequencing varies. Add 10 kΩ from each ESC output GPIO to ground; optional 100–220 Ω output series resistor only reduces ringing, not voltage.\n\n").append(b.getString("source"));
+                    text.append("\n").append(tr(b.getString("notes"))).append("\n\n").append(tr("All GPIOs are 3.3 V, not 5 V tolerant. For a confirmed 5 V PWM signal: receiver → 4.7 kΩ → GPIO, plus 6.8 kΩ from GPIO to ground (1% resistors): about 2.96 V. A 3.3 V signal becomes 1.95 V and may not register. Prefer SN74LVC1G17 at 3.3 V if power sequencing varies. Add 10 kΩ from each ESC output GPIO to ground; optional 100–220 Ω output series resistor only reduces ringing, not voltage.")).append("\n\n").append(b.getString("source"));
                     TextView view=new TextView(this);view.setText(text);view.setTextSize(12);view.setTypeface(android.graphics.Typeface.MONOSPACE);view.setPadding(20,20,20,20);view.setTextIsSelectable(true);
                     ScrollView scroll=new ScrollView(this);scroll.addView(view);
-                    new AlertDialog.Builder(this).setTitle(b.getString("name")).setView(scroll).setPositiveButton("Close",null).show();
+                    new AlertDialog.Builder(this).setTitle(b.getString("name")).setView(scroll).setPositiveButton(tr("Close"),null).show();
                 } catch(JSONException error) {tell(error.getMessage());}
             }).show();
         } catch(Exception error) {tell("Board guide unavailable: "+error.getMessage());}
@@ -364,13 +398,13 @@ public class MainActivity extends Activity {
             }
             @Override public void onScanFailed(int code) {ui.post(()->{stopBleScan();tell("BLE scan failed ("+code+")");});}
         };
-        blePicker=new AlertDialog.Builder(this).setTitle("Choose C3 BLE serial device").setAdapter(names,(dialog,index)->{
-            BluetoothDevice device=devices.get(index);stopBleScan();connecting=true;int token=++generation;tell("Connecting C3 BLE UART…");
+        blePicker=new AlertDialog.Builder(this).setTitle(tr("Choose C3 BLE serial device")).setAdapter(names,(dialog,index)->{
+            BluetoothDevice device=devices.get(index);stopBleScan();connecting=true;languageSelector.setEnabled(false);int token=++generation;tell("Connecting C3 BLE UART…");
             writes.execute(()->{
                 try {Link result=new BleLink(this,device);ui.post(()->accept(result,token));}
                 catch(Exception error) {ui.post(()->failedConnect(token,error));}
             });
-        }).setNegativeButton("Cancel",(dialog,which)->stopBleScan()).create();
+        }).setNegativeButton(tr("Cancel"),(dialog,which)->stopBleScan()).create();
         blePicker.setOnDismissListener(dialog->stopBleScan());blePicker.show();
         ScanCallback scan=bleScanCallback;
         bleScanner.startScan(Collections.singletonList(new ScanFilter.Builder().setServiceUuid(new ParcelUuid(BleLink.SERVICE)).build()),new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(),scan);
@@ -441,28 +475,29 @@ public class MainActivity extends Activity {
     private void receive(String json) {
         try {
             JSONObject data=new JSONObject(json); if(!data.has("ok")) return;
-            boolean armed=data.getBoolean("armed"), healthy=data.getBoolean("signal_ok");
-            boardArmed=armed; currentBoard=data.getString("board"); protocolVersion=data.optInt("protocol_version",1);
+            boolean outputsActive=data.optBoolean("active",data.optBoolean("armed")), healthy=data.getBoolean("signal_ok");
+            boolean configurable=data.optBoolean("configurable",!data.optBoolean("armed"));
+            canConfigure=configurable; currentBoard=data.getString("board"); protocolVersion=data.optInt("protocol_version",1);
             String name=data.optString("device_name",""),identity=data.optString("device_id","");
-            boolean names=data.has("device_name") && data.has("device_id");renameButton.setEnabled(names && !armed);
+            boolean names=data.has("device_name") && data.has("device_id");renameButton.setEnabled(names && configurable);
             if(names) {
                 if(!identity.equals(lastDeviceId) || deviceName.getText().toString().equals(lastDeviceName)) deviceName.setText(name);
                 lastDeviceName=name;lastDeviceId=identity;
             }
-            StringBuilder live=new StringBuilder((names?name+" · ID "+identity+"\n":"")+currentBoard+" · "+(armed?"ARMED":"DISARMED")+" · RX "+(healthy?"ALL OK":"LOST / INVALID")+
-                " · "+(data.getBoolean("saved")?"SAVED":"RAM ONLY"));
+            StringBuilder live=new StringBuilder((names?name+" · ID "+identity+"\n":"")+currentBoard+" · "+tr(outputsActive?"ACTIVE":healthy?"WAITING FOR NEUTRAL":"NO SIGNAL")+" · RX "+tr(healthy?"ALL OK":"LOST / INVALID")+
+                " · "+tr(data.getBoolean("saved")?"SAVED":"RAM ONLY"));
             JSONArray states=data.optJSONArray("channel_states"),configs=data.optJSONArray("mappings");
             if(states!=null && configs!=null) for(int i=0;i<states.length();i++) {
                 JSONObject s=states.getJSONObject(i),c=configs.getJSONObject(i);
-                live.append("\nLive ").append(i+1).append(": GPIO").append(c.getInt("input_pin")).append(" → GPIO").append(c.getInt("output_pin"))
-                    .append(" · ").append(s.getInt("input_us")).append(" → ").append(s.getInt("output_us")).append(" µs · ").append(s.getBoolean("signal_ok")?"OK":"LOST");
+                live.append("\n").append(tr("Live" )).append(" ").append(i+1).append(": GPIO").append(c.getInt("input_pin")).append(" → GPIO").append(c.getInt("output_pin"))
+                    .append(" · ").append(s.getInt("input_us")).append(" → ").append(s.getInt("output_us")).append(" µs · ").append(tr(s.getBoolean("signal_ok")?"OK":"LOST"));
             } else live.append("\nIN ").append(data.getInt("input_us")).append(" → OUT ").append(data.getInt("output_us")).append(" µs");
             JSONObject transports=data.optJSONObject("transports");
-            live.append("\nUSB serial enabled · Bluetooth: ").append(transports!=null?(transports.optBoolean("bluetooth_serial")?transports.optString("bluetooth_name"):"unavailable"):(currentBoard.equals("esp32")?"RC-Limiter":"unavailable"));
-            if(data.optBoolean("name_pending_restart")) live.append("\nName saved; restart to update Bluetooth discovery.");
+            live.append("\n").append(tr("USB serial enabled · Bluetooth:")).append(" ").append(transports!=null?(transports.optBoolean("bluetooth_serial")?transports.optString("bluetooth_name"):tr("unavailable")):(currentBoard.equals("esp32")?"RC-Limiter":tr("unavailable")));
+            if(data.optBoolean("name_pending_restart")) live.append("\n").append(tr("Name saved; restart to update Bluetooth discovery."));
             status.setText(live.toString());
-            applyButton.setEnabled(!armed); saveButton.setEnabled(!armed); armButton.setEnabled(!armed && healthy);
-            addMappingButton.setEnabled(!armed && draftMappings.size()<4); removeMappingButton.setEnabled(!armed && draftMappings.size()>1);
+            applyButton.setEnabled(configurable); saveButton.setEnabled(configurable);
+            addMappingButton.setEnabled(configurable && draftMappings.size()<4); removeMappingButton.setEnabled(configurable && draftMappings.size()>1);
             Pending entry=pending.remove(data.optInt("id",0));
             if(entry!=null) {
                 ui.removeCallbacks(entry.timeout);
@@ -482,15 +517,12 @@ public class MainActivity extends Activity {
     private void disconnect(boolean stop) {
         Link old=link; link=null; ready=connecting=false; generation++; requestedDevice=null;
         for(Pending p:pending.values()) ui.removeCallbacks(p.timeout); pending.clear(); enable(false);
-        lastDeviceName=lastDeviceId="";boardArmed=false; status.setText("OFFLINE · output state unknown");
+        lastDeviceName=lastDeviceId="";canConfigure=true; status.setText(tr("OFFLINE · output state unknown"));
         addMappingButton.setEnabled(draftMappings.size()<4); removeMappingButton.setEnabled(draftMappings.size()>1);
         if(old!=null) {
             if(old instanceof BleLink) ui.postDelayed(()->closeQuietly(old),1200);
-            writes.execute(()->{
-                try { if(stop) old.write("{\"cmd\":\"disarm\",\"id\":0}\n".getBytes(StandardCharsets.UTF_8)); }
-                catch(IOException ignored) {} finally { closeQuietly(old); }
-            });
-            if(stop) tell("Disarm requested before disconnect; delivery is not confirmed.");
+            writes.execute(()->closeQuietly(old));
+            if(stop) tell("Disconnected. Receiver control continues independently of the app.");
         }
     }
     private void importProfile() {
@@ -514,7 +546,7 @@ public class MainActivity extends Activity {
                     ByteArrayOutputStream bytes=new ByteArrayOutputStream(); byte[] buffer=new byte[512]; int count;
                     while((count=input.read(buffer))!=-1) { bytes.write(buffer,0,count); if(bytes.size()>8192) throw new IOException("Profile too large"); }
                     loadProfile(new JSONObject(bytes.toString(StandardCharsets.UTF_8.name())));
-                    tell("Imported into form. Connect, disarm and Apply to send it to the board.");
+                    tell("Imported into form. Connect, hold neutral and Apply to send it to the board.");
                 }
             } else if(request==101 && exportedProfile!=null) {
                 try(OutputStream output=getContentResolver().openOutputStream(uri,"wt")) {

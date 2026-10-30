@@ -1,13 +1,15 @@
+import { t, bindText, initLanguage } from './i18n.mjs';
 import { fields, defaults, validateDeviceName, validate, validateMappings, profile, nextMapping, Protocol } from './protocol.mjs';
 import { openBle } from './ble.mjs';
 import { loadBoardProfiles, drawBoard, boardForFirmware } from './boards.mjs';
+await initLanguage();
 const $ = id => document.getElementById(id);
 const controls = {};
 const selects = { bidirectional: ['Forward only', 'Bidirectional'], scale: ['Clamp at limit', 'Scale full stick travel'], invert: ['Normal', 'Inverted'] };
 for (const [key, label, group] of fields) {
-  const wrapper = document.createElement('label'); wrapper.textContent = label;
+  const wrapper = document.createElement('label');wrapper.append(bindText(document.createTextNode(''), label));
   const input = document.createElement(selects[key] ? 'select' : 'input');
-  if (selects[key]) selects[key].forEach((text, value) => input.add(new Option(text, value)));
+  if (selects[key]) selects[key].forEach((text, value) => input.add(new Option(t(text), value)));
   else { input.type = 'number'; input.step = '1'; input.required = true; }
   input.name = key; input.id = key;
   wrapper.append(input); document.querySelector(`[data-group="${group}"]`).append(wrapper); controls[key] = input;
@@ -26,13 +28,14 @@ function form() {
 }
 fill(defaults);
 let lastDeviceName, lastDeviceId;
+const configurable = data => data?.configurable ?? !data?.armed;
 let draftMappings = [{ ...defaults }], selectedMapping = 0, boardName, latestData, protocolVersion = 1;
 function stashMapping() { draftMappings[selectedMapping] = form(); }
 function renderMappings() {
   $('mapping-select').replaceChildren(...draftMappings.map((c, i) => new Option(`${i + 1}: GPIO${c.input_pin} → GPIO${c.output_pin}`, i)));
   $('mapping-select').value = selectedMapping;
-  $('add-mapping').disabled = draftMappings.length >= 4 || !!latestData?.armed;
-  $('remove-mapping').disabled = draftMappings.length <= 1 || !!latestData?.armed;
+  $('add-mapping').disabled = draftMappings.length >= 4 || !configurable(latestData);
+  $('remove-mapping').disabled = draftMappings.length <= 1 || !configurable(latestData);
   fill(draftMappings[selectedMapping]);
 }
 function loadMappings(data) {
@@ -48,14 +51,14 @@ let boardProfiles = [], selectedBoard;
 function renderBoardGuide() {
   const board = boardProfiles.find(p => p.id === $('board-layout').value); if (!board) return;
   selectedBoard = board;
-  $('board-notes').textContent = board.notes;
+  $('board-notes').textContent = t(board.notes);
   $('board-source').href = board.source;
   drawBoard(board, $('board-drawing'), Number(controls.input_pin.value), Number(controls.output_pin.value));
   const suggestions = $('pin-suggestions'); suggestions.replaceChildren();
   board.pairs.forEach(([input, output], i) => {
     const button = document.createElement('button'); button.type = 'button';
-    button.textContent = `${i + 1}: GPIO${input} → GPIO${output}`;
-    button.disabled = !!latestData?.armed || (!!boardName && !!protocol && board.firmware !== boardName);
+    button.textContent = t(`${i + 1}: GPIO${input} → GPIO${output}`);
+    button.disabled = !configurable(latestData) || (!!boardName && !!protocol && board.firmware !== boardName);
     button.onclick = () => {
       controls.input_pin.value = input; controls.output_pin.value = output; renderBoardGuide();
       message('Suggested GPIOs filled into the selected draft mapping. Check all mapping conflicts, then Apply all.');
@@ -70,7 +73,8 @@ loadBoardProfiles().then(profiles => {
 }).catch(error => { $('board-notes').textContent = error.message; });
 $('board-layout').onchange = renderBoardGuide;
 for (const key of ['input_pin', 'output_pin']) controls[key].addEventListener('input', renderBoardGuide);
-function message(text) { $('message').textContent = text; }
+let lastMessage = '';
+function message(text) { lastMessage = text || ''; $('message').textContent = t(lastMessage); }
 function deviceButtons(connected) {
   document.querySelectorAll('[data-device]').forEach(b => b.disabled = !connected);
   $('connect').disabled = connected || connecting || updatingFirmware; $('disconnect').disabled = !connected;
@@ -80,47 +84,46 @@ deviceButtons(false);
 function status(data) {
   const previousBoard = boardName;
   const supportsNames = typeof data.device_name === 'string' && typeof data.device_id === 'string';
-  $('rename-device').disabled = !supportsNames || !!data.armed;
+  $('rename-device').disabled = !supportsNames || !configurable(data);
   if (supportsNames) {
     if (lastDeviceId !== data.device_id || $('device-name').value === lastDeviceName || $('device-name').value === data.device_name) $('device-name').value = data.device_name;
     lastDeviceName = data.device_name; lastDeviceId = data.device_id;
-    $('device-identity').textContent = `${data.device_name} · ${data.board} · ID ${data.device_id}`;
-    $('name-note').textContent = data.name_pending_restart ? 'Name saved. Restart the board with motor power disconnected to update Bluetooth discovery.' : 'Name is stored on this board and retained by settings-preserving firmware updates.';
-  } else { $('device-identity').textContent = 'Upgrade firmware to name this board.'; }
+    $('device-identity').textContent = t(`${data.device_name} · ${data.board} · ID ${data.device_id}`);
+    $('name-note').textContent = t(data.name_pending_restart ? 'Name saved. Restart the board with motor power disconnected to update Bluetooth discovery.' : 'Name is stored on this board and retained by settings-preserving firmware updates.');
+  } else { $('device-identity').textContent = t('Upgrade firmware to name this board.'); }
   latestData = data; boardName = data.board; protocolVersion = data.protocol_version || 1;
   $('board').textContent = data.board === 'esp32c3' ? 'ESP32-C3 · USB / BLE serial' : data.board === 'esp32' ? 'ESP32 · USB / Bluetooth SPP' : 'Raspberry Pi Pico · USB serial';
   if (boardProfiles.length && previousBoard !== boardName) $('board-layout').value = boardForFirmware(data.board, data.transports?.usb_interface).id;
   renderBoardGuide();
-  $('armed').textContent = data.armed ? 'ARMED' : 'DISARMED';
-  $('signal').textContent = data.signal_ok ? 'Receiver signal valid' : 'Receiver lost / invalid';
+  $('control-state').textContent = t(data.active ? 'ACTIVE' : data.signal_ok ? 'WAITING FOR NEUTRAL' : 'NO SIGNAL');
+  $('signal').textContent = t(data.signal_ok ? 'Receiver signal valid' : 'Receiver lost / invalid');
   const state = data.channel_states ? data.channel_states[selectedMapping] : selectedMapping === 0 ? data : undefined;
   for (const key of ['input', 'output']) {
-    $(key).textContent = state ? `${state[`${key}_us`]} µs` : 'Not applied'; $(`${key}-meter`).value = state?.[`${key}_us`] || 800;
+    $(key).textContent = state ? `${state[`${key}_us`]} µs` : t('Not applied'); $(`${key}-meter`).value = state?.[`${key}_us`] || 800;
   }
-  $('saved').textContent = data.saved ? 'SAVED' : 'RAM ONLY';
-  $('revision').textContent = `Revision ${data.revision} · viewing mapping ${selectedMapping + 1}`;
-  $('apply').disabled = $('save').disabled = !!data.armed;
-  $('arm').disabled = !!data.armed || !data.signal_ok;
-  $('add-mapping').disabled = draftMappings.length >= 4 || !!data.armed;
-  $('remove-mapping').disabled = draftMappings.length <= 1 || !!data.armed;
-  $('transports').textContent = data.transports ? `USB serial: enabled · Bluetooth serial: ${data.transports.bluetooth_serial ? `${data.transports.bluetooth_name} (enabled${data.transports.bluetooth_type === 'ble' ? ', BLE' : ''})` : 'unavailable'}`
-    : data.board === 'esp32' ? 'USB serial + Bluetooth SPP: RC-Limiter' : 'USB serial enabled · no onboard Bluetooth';
+  $('saved').textContent = t(data.saved ? 'SAVED' : 'RAM ONLY');
+  $('revision').textContent = t(`Revision ${data.revision} · viewing mapping ${selectedMapping + 1}`);
+  $('apply').disabled = $('save').disabled = !configurable(data);
+  $('add-mapping').disabled = draftMappings.length >= 4 || !configurable(data);
+  $('remove-mapping').disabled = draftMappings.length <= 1 || !configurable(data);
+  $('transports').textContent = data.transports ? t('USB serial: enabled · Bluetooth serial: {transport}', {transport: data.transports.bluetooth_serial ? t('{name} (enabled{type})', {name: data.transports.bluetooth_name, type: data.transports.bluetooth_type === 'ble' ? ', BLE' : ''}) : t('unavailable')})
+    : t(data.board === 'esp32' ? 'USB serial + Bluetooth SPP: RC-Limiter' : 'USB serial enabled · no onboard Bluetooth');
   const summary = $('mapping-summary'); summary.replaceChildren();
   (data.mappings || [data.config]).forEach((c, i) => {
     const s = data.channel_states?.[i] || (i === 0 ? data : {});
     const row = document.createElement('p');
-    row.textContent = `Live ${i + 1}: GPIO${c.input_pin} → GPIO${c.output_pin} · ${s.input_us} → ${s.output_us} µs · ${s.signal_ok ? 'signal OK' : 'signal lost'} · forward ${c.forward_percent}% / reverse ${c.reverse_percent}%`;
+    row.textContent = t(`Live ${i + 1}: GPIO${c.input_pin} → GPIO${c.output_pin} · ${s.input_us} → ${s.output_us} µs · ${t(s.signal_ok ? 'signal OK' : 'signal lost')} · forward ${c.forward_percent}% / reverse ${c.reverse_percent}%`);
     summary.append(row);
   });
-  $('pin-hint').textContent = data.board === 'esp32c3' ? 'C3 input/output: 0, 1, 3, 4, 5, 6, 7, 10. Keep boot straps, native USB and UART pins free. Default GPIO3 → GPIO4.' : data.board === 'esp32'
+  $('pin-hint').textContent = t(data.board === 'esp32c3' ? 'C3 input/output: 0, 1, 3, 4, 5, 6, 7, 10. Keep boot straps, native USB and UART pins free. Default GPIO3 → GPIO4.' : data.board === 'esp32'
     ? 'ESP32 output/input: 18, 19, 21, 22, 23, 25, 26, 27, 32, 33. Extra input-only: 34, 35, 36, 39.'
-    : 'Pico input/output: GP0–GP22 and GP26–GP28. GP4 → GP5 by default.';
+    : 'Pico input/output: GP0–GP22 and GP26–GP28. GP4 → GP5 by default.');
 }
 async function activateConnection(current) {
   const data = await current.request('get'); loadMappings(data);
-  $('connection').textContent = 'CONNECTED'; $('dot').classList.add('online');
+  $('connection').textContent = t('CONNECTED'); $('dot').classList.add('online');
   connecting = false; deviceButtons(true); status(data);
-  message('Board mappings loaded. Disarm before applying changes. Hold every input at neutral for one second before ARM ALL.');
+  message('Board mappings loaded. Hold every input at neutral for one second to enable control or change settings.');
   polling = setInterval(() => {
     if (protocol && protocol.pending.size === 0) protocol.request('get').catch(error => message(error.message));
   }, bleLink ? 500 : 250);
@@ -172,29 +175,26 @@ async function connectBle() {
   } catch (error) { message(`BLE connection failed: ${error.message}`); await disconnect(false); }
   finally { connecting = false; $('connect').disabled = $('connect-ble').disabled = !!protocol; }
 }
-async function disconnect(requestStop = true) {
+async function disconnect(notify = true) {
   if (closing) return;
   closing = true; clearInterval(polling);
   const current = protocol;
-  if (requestStop && current) {
-    try { await current.request('disarm'); message('Board confirmed DISARM before disconnect.'); }
-    catch { message('Disarm not confirmed. Use transmitter stop or physical cutoff.'); }
-  }
   protocol = undefined; current?.close();
   bleLink?.close(); bleLink = undefined;
   try { await reader?.cancel(); await readTask; } catch { /* Device may already be removed. */ }
   reader?.releaseLock(); reader = undefined;
   try { writer?.releaseLock(); await port?.close(); } catch { /* Device may already be removed. */ }
   writer = port = undefined; readTask = undefined;
-  $('connection').textContent = 'OFFLINE'; $('dot').classList.remove('online');
-  $('armed').textContent = 'UNKNOWN'; $('signal').textContent = 'No live telemetry';
-  $('input').textContent = $('output').textContent = '—';
-  $('mapping-summary').textContent = 'Disconnected; read the board to view live mappings.';
+  $('connection').textContent = t('OFFLINE'); $('dot').classList.remove('online');
+  $('control-state').textContent = t('UNKNOWN'); $('signal').textContent = t('No live telemetry');
+  $('input').textContent = $('output').textContent = t('—');
+  $('mapping-summary').textContent = t('Disconnected; read the board to view live mappings.');
   latestData = undefined; lastDeviceName = lastDeviceId = undefined;
-  $('device-identity').textContent = 'Disconnected; reconnect to identify the board.';
+  $('device-identity').textContent = t('Disconnected; reconnect to identify the board.');
   $('add-mapping').disabled = draftMappings.length >= 4;
   $('remove-mapping').disabled = draftMappings.length <= 1;
   connecting = closing = false; deviceButtons(false);
+  if (notify) message('Disconnected. Receiver control continues independently of the app.');
 }
 async function action(cmd, extra = {}, load = false) {
   try {
@@ -202,7 +202,6 @@ async function action(cmd, extra = {}, load = false) {
     const data = await protocol.request(cmd, extra);
     if (load) loadMappings(data);
     message(({ set_name: data.name_pending_restart ? 'Device name saved. Bluetooth discovery changes after restarting the board.' : 'Device name saved.', set: 'Settings applied to RAM. Save to flash to retain them after power-off.', set_mappings: 'Settings applied to RAM. Save to flash to retain all mappings after power-off.', save: 'Settings saved to board flash.',
-      arm: 'Board armed. Transmitter controls throttle within the configured limits.', disarm: 'Board confirmed DISARM. Stop pulse is active.',
       get: 'Board settings loaded into the form.' })[cmd]);
   } catch (error) { message(error.message); }
 }
@@ -238,7 +237,7 @@ $('remove-mapping').onclick = () => {
   draftMappings.splice(selectedMapping, 1); selectedMapping = Math.min(selectedMapping, draftMappings.length - 1);
   renderMappings(); if (latestData) status(latestData); message('Mapping removed from draft. Apply all mappings to change the board.');
 };
-for (const cmd of ['save', 'arm', 'disarm']) $(cmd).onclick = () => action(cmd);
+$('save').onclick = () => action('save');
 $('export').onclick = () => {
   try {
     const blob = new Blob([JSON.stringify(currentProfile(), null, 2) + '\n'], { type: 'application/json' });
@@ -256,8 +255,6 @@ $('import').onchange = async event => {
   } catch (error) { message(error.message); }
   event.target.value = '';
 };
-// Closing a page cannot await serial IO. The board remains autonomous; docs explain this limitation.
-window.addEventListener('beforeunload', () => { if (writer) void writer.write(new TextEncoder().encode('{"cmd":"disarm","id":0}\n')).catch(() => {}); });
 if (window.desktopSerial) {
   window.desktopSerial.onBleDevices(devices => {
     const list = $('ble-list'); list.replaceChildren();
@@ -265,7 +262,7 @@ if (window.desktopSerial) {
       const button = document.createElement('button'); button.textContent = device.deviceName || device.deviceId;
       button.onclick = () => { window.desktopSerial.chooseBle(device.deviceId); $('ble-dialog').close(); }; list.append(button);
     }
-    if (!devices.length) list.textContent = 'Scanning for RC-Limiter-C3. Power the board and enable Bluetooth.';
+    if (!devices.length) list.textContent = t('Scanning for RC-Limiter-C3. Power the board and enable Bluetooth.');
     if (!$('ble-dialog').open) $('ble-dialog').showModal();
   });
   $('cancel-ble').onclick = () => { window.desktopSerial.chooseBle(''); $('ble-dialog').close(); };
@@ -273,10 +270,10 @@ if (window.desktopSerial) {
   window.desktopSerial.onPorts(ports => {
     const list = $('port-list'); list.replaceChildren();
     for (const port of ports) {
-      const button = document.createElement('button'); button.textContent = `${port.displayName || port.portName} (${port.portName})`;
+      const button = document.createElement('button'); button.textContent = t(`${port.displayName || port.portName} (${port.portName})`);
       button.onclick = () => { window.desktopSerial.choose(port.portId); $('port-dialog').close(); }; list.append(button);
     }
-    if (!ports.length) list.textContent = 'No ports found. Attach a USB board or pair a Bluetooth serial device.';
+    if (!ports.length) list.textContent = t('No ports found. Attach a USB board or pair a Bluetooth serial device.');
     if (!$('port-dialog').open) $('port-dialog').showModal();
   });
   $('cancel-port').onclick = () => { window.desktopSerial.choose(''); $('port-dialog').close(); };
@@ -295,4 +292,11 @@ $('firmware-update').addEventListener('toggle', async () => {
   } catch (error) {
     $('update-status').textContent = 'Updater could not load. For local source checkouts, run npm ci --ignore-scripts and npm run build:web, then reopen this panel. ' + error.message;
   } finally { updaterLoading = false; }
+});
+
+window.addEventListener('rc-language-change', () => {
+  for (const [key, labels] of Object.entries(selects)) [...controls[key].options].forEach((option, i) => { option.textContent = t(labels[i]); });
+  if (latestData) status(latestData);
+  else { renderBoardGuide(); $('connection').textContent = t('OFFLINE'); }
+  message(lastMessage);
 });

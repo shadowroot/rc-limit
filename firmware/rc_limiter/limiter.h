@@ -58,21 +58,21 @@ inline int map(const Config& c, int pulse) {
 // Only a fresh valid pulse can contribute to the one-second neutral dwell.
 class Limiter {
  public:
-  bool armed = false;
-  void reset() { armed=false; dwelling=false; }
+  bool active = false;
+  void reset() { active=false; dwelling=false; }
   int step(const Config& c, uint32_t now, uint32_t last, int pulse, bool seen, bool good) {
     healthy = seen && good && uint32_t(now-last) <= uint32_t(c.timeout_ms)*1000;
     if (!healthy) { reset(); return safe(c); }
     if (neutral(c, pulse)) {
       if (!dwelling) { since=now; dwelling=true; }
     } else dwelling=false;
-    return armed ? map(c, pulse) : safe(c);
+    return active ? map(c, pulse) : safe(c);
   }
-  bool arm(uint32_t now) {
-    if (!canArm(now)) return false;
-    armed=true; return true;
+  bool activate(uint32_t now) {
+    if (!ready(now)) return false;
+    active=true; return true;
   }
-  bool canArm(uint32_t now) const { return healthy && dwelling && uint32_t(now-since) >= 1000000; }
+  bool ready(uint32_t now) const { return healthy && dwelling && uint32_t(now-since) >= 1000000; }
   bool healthy = false;
  private:
   bool dwelling = false;
@@ -117,9 +117,9 @@ class Bank {
  public:
   Limiter channels[MAX_MAPPINGS];
   int outputs[MAX_MAPPINGS]={};
-  bool armed=false,healthy=false;
-  void disarm(const MappingSet& set) {
-    armed=false;
+  bool active=false,healthy=false;
+  void reset(const MappingSet& set) {
+    active=false;
     for(int i=0;i<set.count;i++) { channels[i].reset(); outputs[i]=safe(set.channels[i]); }
   }
   void step(const MappingSet& set,uint32_t now,const Sample* samples) {
@@ -129,12 +129,18 @@ class Bank {
       outputs[i]=channels[i].step(set.channels[i],now,s.last,s.pulse,s.seen,s.good);
       healthy=healthy && channels[i].healthy;
     }
-    if(!healthy) disarm(set);
+    if(!healthy) reset(set);
+    else if(!active) activate(set,now);
   }
-  bool arm(const MappingSet& set,uint32_t now) {
-    for(int i=0;i<set.count;i++) if(!channels[i].canArm(now)) return false;
-    for(int i=0;i<set.count;i++) channels[i].arm(now);
-    armed=true; return true;
+  bool configurable(const MappingSet& set,uint32_t now) const {
+    if(!active) return true;
+    for(int i=0;i<set.count;i++) if(!channels[i].ready(now)) return false;
+    return true;
+  }
+  bool activate(const MappingSet& set,uint32_t now) {
+    for(int i=0;i<set.count;i++) if(!channels[i].ready(now)) return false;
+    for(int i=0;i<set.count;i++) channels[i].activate(now);
+    active=true; return true;
   }
 };
 }

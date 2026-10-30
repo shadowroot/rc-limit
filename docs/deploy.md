@@ -55,7 +55,7 @@ Disconnect motor power, close serial monitors and configuration apps, and identi
 ./scripts/deploy.sh esp32 --port COM5
 ```
 
-Each flash command first compiles the current source, stops on build failure, and uploads those newly generated artifacts to the selected port. No port is selected automatically. Pico, original ESP32, C3 Super Mini and official C3 DevKitM-1 targets are configured. The two C3 native targets select USB Serial/JTAG versus UART0 so the configuration stream uses the selected board connector. The Arduino fallback uses the equivalent USB CDC On Boot option. After upload, read back the settings before restoring motor power; arming remains an explicit app action.
+Each flash command first compiles the current source, stops on build failure, and uploads those newly generated artifacts to the selected port. No port is selected automatically. Pico, original ESP32, C3 Super Mini and official C3 DevKitM-1 targets are configured. The two C3 native targets select USB Serial/JTAG versus UART0 so the configuration stream uses the selected board connector. The Arduino fallback uses the equivalent USB CDC On Boot option. After upload, read back the settings before restoring motor power; control enables automatically after every input is neutral for one second.
 
 For a fresh Pico, hold BOOTSEL while connecting USB, then release it. Pass the mounted **RPI-RP2 volume**, not a raw block device:
 
@@ -151,4 +151,4 @@ RC_LIMIT_ARDUINO_CLI=/opt/arduino-cli ./scripts/setup-firmware.sh pico
 RC_LIMIT_ADB="$ANDROID_HOME/platform-tools/adb" ./scripts/deploy.sh android --serial YOUR_DEVICE_ID --apk build/android/rc-limit-debug.apk
 ```
 
-An existing overridden Arduino configuration is preserved. If you supply one, ensure it already includes the board index URLs shown in [build.md](build.md). The scripts do not use sudo, change device permissions, automatically install OS packages, arm the limiter, or select a Bluetooth connection. Pair Classic SPP through the OS; connect C3 BLE directly through the app's BLE chooser after deployment.
+An existing overridden Arduino configuration is preserved. If you supply one, ensure it already includes the board index URLs shown in [build.md](build.md). The scripts do not use sudo, change device permissions, automatically install OS packages, enable receiver control, or select a Bluetooth connection. Pair Classic SPP through the OS; connect C3 BLE directly through the app's BLE chooser after deployment.

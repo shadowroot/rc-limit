@@ -1,3 +1,4 @@
+import { t } from './i18n.mjs';
 import { ESPLoader, Transport } from 'esptool-js';
 import { unzipSync } from 'fflate';
 import SparkMD5 from 'spark-md5';
@@ -8,14 +9,17 @@ export function initUpdater({ canUpdate, setBusy }) {
   let bundle, busy = false, catalog;
   const catalogUrl = new URL('./firmware/catalog.json', document.baseURI);
   const controls = ['update-board', 'update-file', 'update-ack', 'update-check'];
-  const message = text => { $('update-status').textContent = text; };
+  let lastMessage = '';
+  const message = text => { lastMessage = text; $('update-status').textContent = t(text); };
   function stableSelection() {
     const item = catalog?.boards.find(item => item.board === $('update-board').value);
     const link = $('stable-firmware-download');
     link.hidden = !item;
     if (item) { const url = new URL(item.file, catalogUrl);url.searchParams.set('sha256', item.sha256);link.href = url.href; link.download = `rc-limit-${item.board}.zip`; }
     $('stable-firmware-use').disabled = busy || !item || !item.updater_supported;
-    if (item) $('stable-firmware-status').textContent = `Bundled stable release: ${catalog.release.tag}. ` + (item.updater_supported ? 'Download or load the selected board firmware.' : 'This older package is download-only; use its CLI flashing instructions.');
+    if (!catalog) return;
+    if (!item) $('stable-firmware-status').textContent = t(catalog.release ? `Bundled stable release: ${catalog.release.tag}. Choose your exact board to download or load its firmware.` : 'No published stable firmware is bundled. You can still select a release ZIP manually.');
+    if (item) $('stable-firmware-status').textContent = t(`Bundled stable release: ${catalog.release.tag}. `) + t(item.updater_supported ? 'Download or load the selected board firmware.' : 'This older package is download-only; use its CLI flashing instructions.');
   }
   function buttons() {
     controls.forEach(id => { $(id).disabled = busy; });
@@ -40,7 +44,7 @@ export function initUpdater({ canUpdate, setBusy }) {
         return true;
       } });
       bundle = await validateBundle(entries, $('update-board').value);
-      message(`Verified ${bundle.board} · source ${bundle.commit.slice(0, 12)}. ${bundle.board === 'pico' ? 'Export the UF2 and copy it to the BOOTSEL volume.' : 'Ready to choose a USB port and flash.'}`);
+      message(`Verified ${bundle.board} · source ${bundle.commit.slice(0, 12)}. ${t(bundle.board === 'pico' ? 'Export the UF2 and copy it to the BOOTSEL volume.' : 'Ready to choose a USB port and flash.')}`);
     } catch (error) { message(error.message); }
     finally { busy = false; buttons(); }
   }
@@ -60,9 +64,9 @@ export function initUpdater({ canUpdate, setBusy }) {
     return response.json();
   }).then(value => {
     catalog = validateCatalog(value);
-    $('stable-firmware-status').textContent = catalog.release ? `Bundled stable release: ${catalog.release.tag}. Choose your exact board to download or load its firmware.` : 'No published stable firmware is bundled. You can still select a release ZIP manually.';
+    $('stable-firmware-status').textContent = t(catalog.release ? `Bundled stable release: ${catalog.release.tag}. Choose your exact board to download or load its firmware.` : 'No published stable firmware is bundled. You can still select a release ZIP manually.');
     stableSelection();
-  }).catch(error => { $('stable-firmware-status').textContent = error.message + ' You can select a release ZIP manually.'; });
+  }).catch(error => { $('stable-firmware-status').textContent = t(error.message) + t(' You can select a release ZIP manually.'); });
   $('update-uf2').onclick = () => {
     if (!bundle || bundle.board !== 'pico' || !$('update-ack').checked || !canUpdate()) { message('Disconnect the configuration session before updating.'); return; }
     const url = URL.createObjectURL(new Blob([bundle.images[0].data]));
@@ -72,7 +76,7 @@ export function initUpdater({ canUpdate, setBusy }) {
   };
   $('update-flash').onclick = async () => {
     if (!bundle || bundle.board === 'pico' || !$('update-ack').checked || busy) return;
-    if (!canUpdate()) { message('Disarm and disconnect the configuration session before updating.'); return; }
+    if (!canUpdate()) { message('Stop the transmitter and disconnect the configuration session before updating.'); return; }
     let transport;
     busy = true; setBusy(true);buttons();$('update-log').textContent = '';$('update-progress').value = 0;
     let log = '';
@@ -98,6 +102,7 @@ export function initUpdater({ canUpdate, setBusy }) {
       busy = false;setBusy(false);buttons();
     }
   };
+  window.addEventListener('rc-language-change', () => { message(lastMessage);stableSelection(); });
   buttons();
   message(navigator.serial ? 'Select the matching release ZIP, then verify it.' : 'USB flashing needs desktop Chrome/Edge or Electron. Pico UF2 export remains available.');
 }

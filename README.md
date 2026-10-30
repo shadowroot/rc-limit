@@ -27,7 +27,7 @@ After connecting, use **Device identity → Save device name** to label each boa
 
 ## Multiple pin mappings
 
-Use **+ Add mapping** in the web/Electron GUI or **+ Mapping** in Android. Select a mapping to edit its GPIOs, pulse calibration, forward/reverse limits and timeout. Edits remain in the form until **Apply all mappings / Apply all**, followed by **Save to flash / Save flash** for persistence. Each mapping has independent limits and live telemetry; arming/disarming applies to the whole board.
+Use **+ Add mapping** in the web/Electron GUI or **+ Mapping** in Android. Select a mapping to edit its GPIOs, pulse calibration, forward/reverse limits and timeout. Edits remain in the form until **Apply all mappings / Apply all**, followed by **Save to flash / Save flash** for persistence. Each mapping has independent limits and live telemetry; automatic neutral-gated control applies to the whole board.
 
 Suggested conflict-free pairs (GPIO numbers):
 
@@ -40,7 +40,7 @@ Suggested conflict-free pairs (GPIO numbers):
 
 These are suggestions, not fixed assignments. A single receiver GPIO may feed multiple output mappings with different limits. Outputs must be unique and cannot also serve as receiver inputs. Pico outputs 16 GPIOs apart cannot be used independently because they alias one hardware PWM channel. The apps and firmware validate these conflicts.
 
-All mapped inputs must be valid and held at stop for one second before **ARM ALL** succeeds. Losing any mapped input stops and disarms **every output**. Receiver restoration never rearms the board. Do not add an unused/unwired input mapping: it will prevent arming. To remove one, remove it from the draft and Apply all while disarmed.
+All mapped inputs must be valid and held at neutral/stop for one second before control enables automatically. Losing any mapped input stops **every output**. After signal returns, all inputs must remain at neutral for another second before control resumes. An unused/unwired input prevents control from enabling. Remove it from the draft and Apply all while outputs are stopped.
 
 Profiles now export as `{"version":2,"mappings":[...]}`. Old single-channel profile files and saved firmware configurations are read as one mapping; a subsequent save writes the new format. Upgrade firmware to use multiple mappings. Example profiles are in [examples/](examples/).
 
@@ -52,7 +52,7 @@ USB serial is available on every target. Pico and the C3 Super Mini use native U
 - **ESP32-C3:** BLE UART starts as **RC-&lt;device name&gt;** (default `RC-C3-XXXXXX`) alongside USB. Use **Connect C3 BLE serial** in web/Electron or **BLE C3** in Android. No prior OS pairing is required. It uses the Nordic UART Service (GATT), not a virtual COM port.
 - **Pico:** USB only; no onboard Bluetooth on a standard Pico, and no Pico W Bluetooth stack is implemented here.
 
-The same JSON commands, four mappings and arming rules work over each transport. Use one controller at a time. Bluetooth transports have no application authentication in this prototype; use a controlled bench environment. A link loss does not guarantee delivery of disarm.
+The same JSON commands, four mappings and automatic neutral-gating rules work over each transport. Use one controller at a time. Bluetooth transports have no application authentication in this prototype; use a controlled bench environment. App disconnection does not stop receiver control.
 
 ## Board layouts and 5 V receiver signals
 
@@ -119,16 +119,16 @@ Open `android/` in Android Studio, allow Gradle sync, and run the app on an Andr
 - **USB OTG:** connect a data cable/OTG adapter, tap USB OTG, select the board and grant USB permission. Pico uses CDC ACM; ESP32 commonly uses CP210x, CH340, or FTDI USB UART. Supported by usb-serial-for-android.
 - **Bluetooth:** pair the board’s `RC-<device name>` in Android settings, tap Bluetooth, grant Nearby devices permission on Android 12+, and choose the paired ESP32. It uses RFCOMM/SPP; no scan or location permission is needed for this path.
 - **BLE C3:** tap BLE C3, grant Bluetooth scan/connect permissions on Android 12+, and choose the advertising `RC-<device name>` UART device. Android 8–11 requires Location permission and system Location enabled for BLE scanning. USB remains available if wireless permission is denied.
-- Read board → edit → **DISARM** → Apply RAM → Save flash. Hold the receiver at neutral for one second before **ARM**. Input/output pulses and signal status update live.
-- Import/export profiles through the system document picker. Going to the background or leaving the app requests disarm and disconnects; delivery is not guaranteed if the connection fails. Reconnect explicitly after returning.
+- Read board → edit → hold every input neutral for one second → Apply all → Save flash. Control enables automatically after the neutral dwell. Input/output pulses and signal status update live.
+- Import/export profiles through the system document picker. Going to the background or leaving the app disconnects; receiver control continues independently. Reconnect explicitly after returning.
 
 ## Behavior
 
-Power-up, reset and receiver loss leave the board **disarmed**. Each output keeps sending its configured stop pulse while disarmed. Every mapped receiver input must remain within its neutral deadband for one second before an explicit ARM command succeeds. Loss or invalid pulse width on any input disarms all outputs; restoring signal does not rearm. App disconnect is not itself a firmware failsafe trigger: receivers continue controlling an armed board if disarm was not delivered. Use transmitter stop and a physical power cutoff.
+Power-up, reset and receiver loss request the configured stop pulse on every output. Control enables automatically only after every mapped input is valid and remains within its neutral deadband for one second. A missing or invalid pulse on any input stops all outputs and restarts this requirement. Signal restoration at throttle cannot resume control. App disconnect does not stop receiver control. Use transmitter stop and a physical power cutoff.
 
-Configuration edits and flash writes are rejected while armed. Applying settings restarts receiver acquisition and neutral dwell. Flash saves include a schema marker and checksum; invalid saved data falls back to defaults. The protocol is shared by USB and Bluetooth; use **one controller at a time**. The firmware does not arbitrate exclusive control between clients.
+Configuration edits, device renaming and flash writes are permitted when outputs are inactive, or after all active inputs have been neutral for one second. Commands are rejected during throttle with `hold_all_neutral_for_1s`. Applying settings restarts receiver acquisition and neutral dwell; saving settings or a device name also stops outputs and restarts the dwell. Flash saves include a schema marker and checksum; invalid saved data falls back to defaults. The protocol is shared by USB and Bluetooth; use **one controller at a time**. The firmware does not arbitrate exclusive control between clients.
 
-ESP32 Classic and C3 BLE are enabled for local configuration, without application authentication. Treat anyone who can connect as able to read/edit settings or arm/disarm. This prototype should be configured in a controlled bench environment.
+ESP32 Classic and C3 BLE are enabled for local configuration, without application authentication. Treat anyone who can connect as able to read/edit settings. This prototype should be configured in a controlled bench environment.
 
 Pico/Pico W uses USB only in this implementation. ESP32-S2/S3/C6 and Pico 2 are not supported targets here. Only conventional individual-channel RC PWM is supported; no SBUS, iBUS, PPM sum, DShot, or OneShot.
 
@@ -148,3 +148,7 @@ android/             Native Android app, USB and Bluetooth transports
 docs/                Wiring, setup, protocol, commissioning and verification
 tests/               Mapping, failsafe and command transport tests
 ```
+
+### Language
+
+Choose **English / Čeština** in the web/Electron GUI or native Android app. The choice is remembered; Czech is selected initially on Czech devices. Android language changes require a disconnected session and preserve draft settings. Configuration keys, device names and profile files keep their original values.
