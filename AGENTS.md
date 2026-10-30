@@ -11,11 +11,11 @@ These instructions apply to this project and its subdirectories. Preserve the or
 - Provide USB serial configuration on Pico and ESP32, plus Bluetooth configuration on ESP32. Support C3 Super Mini and C3 DevKit boards with USB and BLE serial (the user accepted BLE instead of Classic for C3).
 - Provide board layouts and suggested pins for Pico, original ESP32 DevKit, C3 Super Mini and C3 DevKitM-1, and resistor/buffer guidance for non-5-V-tolerant GPIOs.
 - Provide a **web configuration GUI that can run in Electron**.
-- Provide a **separate native Android implementation** with USB serial and Bluetooth support. Keep it native; the requested Android implementation is not a WebView wrapper.
+- The original native Android requirement was superseded by the user: remove the native app and provide an **installable web PWA**, retaining Electron. Do not reintroduce APK/Gradle/Android SDK builds.
 - Document how to connect a receiver to the limiter and the limiter to an ESC, including handling a receiver signal that actually reaches 5 V, signal level conversion, common ground and power connections.
-- Provide scripts for setup, building, flashing, installing Android, and launching the configuration apps.
+- Provide scripts for setup, building, flashing, PWA installation, and launching the configuration apps.
 
-The initial Python desktop GUI was replaced by the web/Electron and native Android requirements. `app/controller.py` is not part of the current implementation, even if an IDE still has an old tab open.
+The initial Python desktop GUI was replaced by the web/Electron requirements; the native Android implementation was later replaced by the PWA. `app/controller.py` is not part of the current implementation, even if an IDE still has an old tab open.
 
 ## Current implementation scope and defaults
 
@@ -27,7 +27,7 @@ These are implementation choices, not additional original user requirements. Doc
 - Default GPIO mapping: Pico GP4 input → GP5 output; ESP32 GPIO27 input → GPIO25 output; C3 GPIO3 input → GPIO4 output. GPIO numbers are not physical header positions.
 - Bidirectional pulse defaults: 1000 / 1500 neutral / 2000 µs, with 30% forward and reverse limits. Confirm the actual ESC neutral before motor operation.
 - Device names are per-board identity, independently persisted from mapping profiles. Preserve the hardware ID, name record/NVS key and discovery-by-service behavior; renaming requires inactive outputs or every active input held neutral for one second and Bluetooth name changes take effect after reboot. USB descriptors are not user-renamed.
-- Both apps share the firmware's version 3 newline-delimited JSON protocol and version 2 profiles containing a `mappings` array of 15-field channel configurations. Import legacy single-channel profiles and saved configurations; preserve compatibility or document a coordinated migration.
+- The web/PWA and Electron apps share the firmware's version 3 newline-delimited JSON protocol and version 2 profiles containing a `mappings` array of 15-field channel configurations. Import legacy single-channel profiles and saved configurations; preserve compatibility or document a coordinated migration.
 - The limiter constrains the ESC command. It does not measure or guarantee motor speed, current, torque or power.
 
 ## Development prerequisites
@@ -42,13 +42,11 @@ Install only the tools needed for the work being done. Use the pinned versions i
 | Web GUI | Node.js **22.12+**, npm for the firmware updater bundle; Python 3 for local serving; desktop browser supporting Web Serial, such as Chrome/Edge; localhost or HTTPS |
 | Electron | Node.js **22.12+**, npm; Electron **43.8.4** and electron-builder **26.18.0** from `package-lock.json` |
 | Windows EXE packaging | Node.js **22.12+**, npm; `npm run package:win`; Windows x64 CI runner (Linux cross-builds need Wine); unsigned NSIS installer and portable EXE |
-| Native Android | JDK **17 or 21**; Android SDK Platform **35**, Build Tools **35.0.0**, platform-tools/adb; Gradle wrapper **8.9**, Android Gradle Plugin **8.7.3** |
-| Android USB driver | usb-serial-for-android **3.9.0**, resolved by Gradle |
 | Optional UI integration tests | Playwright and a compatible Chromium installation; Electron dependencies for the Electron test |
 
-The Android application supports API 26+ and currently targets/compiles API 35. Firmware setup and first npm/Gradle builds require network access. Android dependencies resolve through Google Maven, Maven Central and JitPack.
+Firmware setup and first npm builds require network access. PWA installation requires HTTPS or localhost and a compatible browser.
 
-For physical testing, have the exact board, receiver and ESC manuals; data-capable USB cables; a USB OTG adapter for Android USB; appropriate signal conversion and regulated supplies; and an oscilloscope to verify signal voltage and pulse timing. Original ESP32 Classic requires OS pairing; C3 BLE requires service discovery and notifications. BLE scan permissions differ between Android 8–11 and Android 12+. USB deployment requires device access; Android installation requires USB debugging authorization.
+For physical testing, have exact board/receiver/ESC manuals, data-capable USB cables, appropriate signal conversion and regulated supplies, and an oscilloscope. Classic SPP requires OS pairing; C3 BLE requires service discovery and notifications. PWA device APIs depend on the browser, OS and device; installation does not add native serial drivers. See `docs/pwa.md`.
 
 ## Source layout
 
@@ -56,9 +54,8 @@ For physical testing, have the exact board, receiver and ESC manuals; data-capab
 - `firmware/espidf/`: native Espressif GPIO/LEDC, UART/USB, Bluedroid SPP/BLE, cJSON and NVS implementation.
 - `platformio.ini`: pinned builds for all four boards; ESP targets use `framework = espidf`.
 - `firmware/rc_limiter/rc_limiter.ino`: Arduino fallback/Pico hardware capture/output, persistence and serial/Bluetooth commands.
-- `web/`: shared browser/Electron GUI, BLE transport and protocol client. `firmware.mjs` validates release manifests; `updater.mjs` uses pinned esptool-js for USB bootloader flashing. Build its ignored `web/dist/` bundle via `npm run build:web`; include third-party licenses. `web/hardware/boards.json` is shared with Android assets; keep pin layouts and guidance consistent.
+- `web/`: shared browser/Electron GUI, BLE transport and protocol client. `firmware.mjs` validates release manifests; `updater.mjs` uses pinned esptool-js for USB bootloader flashing. Build its ignored `web/dist/` bundle via `npm run build:web`; include third-party licenses. Keep the board data under `web/hardware/boards.json` consistent with the wiring docs.
 - `electron/`: sandboxed desktop shell, preload bridge and device chooser.
-- `android/`: native Java Android app, USB serial and Bluetooth transports.
 - `scripts/`: checks, isolated firmware setup and deployment entry points.
 - `tests/`: limiter, protocol, deployment and optional UI integration tests.
 - `docs/`: build/deployment, wiring, protocol, commissioning and verification records.
@@ -80,12 +77,11 @@ bash scripts/check-idf.sh
 ./scripts/deploy.sh esp32 --build-only
 ./scripts/deploy.sh esp32c3 --build-only
 ./scripts/deploy.sh esp32c3-devkit --build-only
-./scripts/deploy.sh android --build-only
 ./scripts/deploy.sh desktop --package
 ./scripts/deploy.sh web
 ```
 
-For hardware deployment, require explicit selection via `--port`, Pico `--mount`, or Android `--serial`; do not introduce automatic selection of an arbitrary device. Preserve `--dry-run` behavior: no commands executed, files written, server started, or hardware changed. See `./scripts/deploy.sh --help` and `docs/deploy.md` for examples. Do not flash hardware or install onto a phone merely to validate a documentation or source-only change.
+For hardware deployment, require explicit selection via `--port`, Pico `--mount`; do not introduce automatic selection of an arbitrary device. Preserve `--dry-run` behavior: no commands executed, files written, server started, or hardware changed. See `./scripts/deploy.sh --help` and `docs/deploy.md` for examples. Do not flash hardware merely to validate a documentation or source-only change.
 
 ## Runtime behavior to preserve
 
@@ -104,7 +100,7 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 ## Validation and documentation
 
 - For code changes, run checks appropriate to the affected behavior. `bash scripts/check.sh` covers the portable limiter, JavaScript protocol/profile handling, script syntax and mocked deployment tests.
-- Compile affected firmware targets after hardware API or firmware changes. Build Android after native source/build changes and verify Electron packaging after desktop packaging changes.
+- Compile affected firmware targets after hardware API or firmware changes. Verify Electron packaging after desktop packaging changes.
 - Use the optional browser/Electron integration checks described in `docs/validation.md` for relevant UI/transport changes. Clearly label simulated serial devices.
 - Distinguish compilation, mocked tests and real hardware verification in reports. Follow `docs/commissioning.md` for actual waveform, ESC, receiver failsafe, power-loss and transport tests.
 - Firmware updates use USB bootloaders: ESP32/C3 via Web Serial, Pico via RP2040 UF2 BOOTSEL copy. No BLE/Wi-Fi OTA is implemented. Verify manifest board, chip, offsets, hashes and partition layout before any flash write; preserve NVS and require an explicit port and disconnected motor power.
@@ -114,10 +110,12 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 
 ## CI and releases
 
-`.github/workflows/build.yml` runs checks and all four PlatformIO builds, Android debug assembly, Linux Electron packaging and web archiving. `v*` tag pushes create draft releases only after all jobs succeed. Packages must contain board identity, source commit, checksums and flashing instructions; never publish an application-only ESP binary as a complete fresh-device image. No hardware is flashed by CI. See `docs/releases.md`.
+`.github/workflows/build.yml` runs checks and all four PlatformIO builds, Linux Electron packaging and web archiving. `v*` tag pushes create draft releases only after all jobs succeed. Packages must contain board identity, source commit, checksums and flashing instructions; never publish an application-only ESP binary as a complete fresh-device image. No hardware is flashed by CI. See `docs/releases.md`.
 
 GitHub Pages deploys `web/` through `.github/workflows/pages.yml` only from main after checks and static ZIP validation. PRs validate without deployment. Keep the README ZIP download and independent `app-web` CI artifact available. Preserve relative paths and the `/rc-limit/` integration test. Repository Pages source must be configured as GitHub Actions.
 
 Stable firmware in web distributions must come from the latest published non-prerelease GitHub release and pass SHA256SUMS validation. Never relabel main/nightly builds as stable. Keep the tracked UI-only snapshot separate from CI overlays under ignored `web/firmware/stable/`. Pages and app-web distributions must contain all four firmware packages; source ZIP checks run before the overlay. Publishing updates only the standalone web asset/checksum on mutable releases and must preserve firmware hashes and signed tags.
 
-English/Czech UI translations share `web/i18n/cs.json`. Run `python3 scripts/sync-translations.py` after catalog changes to regenerate native Android resources, and `--check` to verify them. Preserve wire keys, device names and profile values across language changes.
+English/Czech UI translations use `web/i18n/cs.json`. Preserve wire keys, device names and profile values across language changes.
+
+PWA assets are generated by `npm run build:web`, including the ignored `web/sw.js` content version. Precache only the application shell; firmware catalogs and ZIPs must use the network. Preserve subpath-relative manifest/scope/assets, separate per-scope caches and the default waiting worker lifecycle. Never force a service-worker activation or page reload during serial configuration or flashing. Test offline startup and waiting updates under `/rc-limit/`.

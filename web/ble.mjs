@@ -5,7 +5,7 @@ export const nus = {
   tx: '6e400003-b5a3-f393-e0a9-e50e24dcca9e',
 };
 export async function openBle(onData, onLost) {
-  if (!navigator.bluetooth) throw new Error('Web Bluetooth is unavailable. Use a supported Chrome/Edge configuration, Electron or native Android.');
+  if (!navigator.bluetooth) throw new Error('Web Bluetooth is unavailable. Use a browser with Web Bluetooth support or Electron.');
   const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [nus.service] }] });
   const decoder = new TextDecoder();
   const lost = () => onLost(new Error('BLE connection lost; output state is unknown.'));

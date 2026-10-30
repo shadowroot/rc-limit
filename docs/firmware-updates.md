@@ -9,7 +9,7 @@ Open **Update firmware over USB** below the configuration controls. On Pages or 
 5. For Pico RP2040, click **Export Pico UF2**, hold BOOTSEL while reconnecting USB, then copy the exported file to the **RPI-RP2** volume. The browser export itself does not flash a Pico. Pico 2 and Pico W wireless updates are not supported.
 6. After reboot, reconnect the configuration app, read settings and check pins, neutral, limits and all failsafes before restoring motor power. Import the backed-up profile if necessary; save explicitly. Follow commissioning instructions.
 
-USB flashing uses Espressif's [esptool-js](https://github.com/espressif/esptool-js) **0.7.0**, bundled locally. It requires desktop Chrome/Edge Web Serial or Electron with its explicit port chooser. Native Android remains a configuration app; this feature does not add Android firmware flashing. The [CLI deployment scripts](deploy.md) remain available for all four boards.
+USB flashing uses Espressif's [esptool-js](https://github.com/espressif/esptool-js) **0.7.0**, bundled locally. It requires desktop Chrome/Edge Web Serial or Electron with its explicit port chooser. The installed PWA uses the same updater where its browser exposes Web Serial; use desktop Chrome/Edge or Electron when phone USB support is unavailable. The [CLI deployment scripts](deploy.md) remain available for all four boards.
 
 ## Validation and persistence
 
@@ -38,6 +38,6 @@ The optional `tests/firmware-ui-smoke.cjs` needs Playwright/Chromium and real ZI
 
 ## Naming boards after an update
 
-After reboot, connect the updated board, find **Device identity**, enter e.g. `Boat port ESC`, and click **Save device name** while outputs are inactive or every input has been neutral for one second. Native Android has the same name field/button. The name is saved immediately on the board, independently of throttle settings. Names remain through later updates that preserve the settings area. New/unnamed boards show a unique hardware-derived default and every reply also includes the stable hardware ID.
+After reboot, connect the updated board, find **Device identity**, enter e.g. `Boat port ESC`, and click **Save device name** while outputs are inactive or every input has been neutral for one second. The installed PWA uses the same name field/button. The name is saved immediately on the board, independently of throttle settings. Names remain through later updates that preserve the settings area. New/unnamed boards show a unique hardware-derived default and every reply also includes the stable hardware ID.
 
 Restart a Bluetooth board with motor power disconnected to advertise `RC-` plus its new name. USB port-picker labels may remain generic; the app shows the custom name/ID after connecting. See [device identity protocol](protocol.md#device-identity-and-naming) for allowed characters and storage/downgrade details.

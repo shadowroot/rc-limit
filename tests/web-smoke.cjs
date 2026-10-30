@@ -12,7 +12,7 @@ async function main() {
     const base = '/rc-limit/';
     if (!pathname.startsWith(base)) { res.writeHead(404).end(); return; }
     const filename = pathname === base ? 'index.html' : pathname.slice(base.length);
-    if (!['index.html', 'app.mjs', 'protocol.mjs', 'ble.mjs', 'boards.mjs', 'i18n.mjs', 'i18n/cs.json', 'hardware/boards.json', 'style.css'].includes(filename)) { res.writeHead(404).end(); return; }
+    if (!['index.html', 'app.mjs', 'protocol.mjs', 'ble.mjs', 'boards.mjs', 'pwa.mjs', 'i18n.mjs', 'i18n/cs.json', 'hardware/boards.json', 'style.css'].includes(filename)) { res.writeHead(404).end(); return; }
     res.setHeader('Content-Type', filename.endsWith('.mjs') ? 'text/javascript' : filename.endsWith('.json') ? 'application/json' : filename.endsWith('.css') ? 'text/css' : 'text/html');
     res.end(await fs.readFile(path.join(project, 'web', filename)));
   });

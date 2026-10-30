@@ -1,5 +1,17 @@
 # Verification record
 
+## Web PWA replacement (2026-10-30)
+
+The native Android source, Gradle wrapper/resources, deployment target, translation generator and CI/release job were removed at the user's request. Prior Android results below describe historical revisions only.
+
+- Repository checks on Node 22, PWA manifest/cache-routing tests and mocked deployment tests passed. The removed native deployment target is rejected without invoking tools.
+- From the actual standalone ZIP under `/rc-limit/`, Chromium reported no manifest or installability errors in a regular browser profile. Offline reload passed with Czech selection, four board diagrams and the lazy firmware validator/updater available.
+- The same browser test confirmed firmware catalog requests fail offline instead of returning cached firmware or HTML, an updated worker waits while the current app remains open, reloads retain the old shell while waiting, and closing all app clients allows the new version to activate.
+- Existing simulated serial/BLE configuration and Electron startup/Czech-selection tests passed. The web CI job now runs the packaged PWA browser test; Pages watches the PWA build sources.
+
+No physical phone or board was connected. Browser installability checks do not establish USB/Bluetooth support on any particular phone. Android hardware permissions, actual installation UX, BLE connections, mobile background suspension and USB bootloader access remain physical tests; see [pwa.md](pwa.md).
+
+
 ## Automatic control and Czech UI (2026-10-30)
 
 The following checks cover protocol version 3 and replace the manual-arming behavior described in older records below:

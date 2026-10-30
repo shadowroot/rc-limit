@@ -63,64 +63,10 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  android:
-    needs: checks
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - name: Restore Gradle dependencies and task outputs
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-read-only: ${{ github.event_name == 'pull_request' }}
-      - name: Select Android SDK location
-        shell: bash
-        run: |
-          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$RUNNER_TEMP/android-sdk}}"
-          echo "ANDROID_HOME=$sdk_root" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$sdk_root" >> "$GITHUB_ENV"
-      - name: Restore pinned Android command-line tools
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.ANDROID_HOME }}/cmdline-tools/16.0
-          key: android-cmdline-${{ runner.os }}-${{ runner.arch }}-12266719
-      - name: Install Android SDK packages
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: '12266719'
-          # Override the action's default obsolete 'tools' package.
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
-          log-accepted-android-sdk-licenses: false
-      - name: Verify Android SDK tools
-        shell: bash
-        run: |
-          test -n "${ANDROID_HOME:?Android SDK setup did not export ANDROID_HOME}"
-          command -v sdkmanager
-          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
-          "$ANDROID_HOME/platform-tools/adb" version
-          "$ANDROID_HOME/build-tools/35.0.0/aapt2" version
-      - name: Build native Android debug APK
-        working-directory: android
-        run: bash gradlew --no-daemon assembleDebug
-      - name: Name debug APK
-        run: |
-          mkdir -p build/releases
-          cp android/app/build/outputs/apk/debug/app-debug.apk build/releases/rc-limit-android-debug.apk
-      - uses: actions/upload-artifact@v4
-        with:
-          name: app-android
-          path: build/releases/rc-limit-android-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
   web:
     needs: checks
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
@@ -134,6 +80,10 @@ jobs:
       - run: npm run build:web
       - name: Verify source UI snapshot
         run: python3 scripts/package-web.py --check
+      - name: Install browser for PWA checks
+        run: npx playwright install --with-deps chromium
+      - name: Verify PWA installability, offline startup and waiting updates
+        run: CHROMIUM_PATH="$(node -p "require('playwright').chromium.executablePath()")" npm run test:pwa
       - name: Bundle latest published stable firmware
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -201,7 +151,7 @@ jobs:
 
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [checks, firmware, android, web, desktop, windows]
+    needs: [checks, firmware, web, desktop, windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

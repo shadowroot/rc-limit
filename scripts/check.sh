@@ -6,9 +6,11 @@ trap 'rm -f "$test_binary"' EXIT
 g++ -std=c++11 -Wall -Wextra -Werror -fsanitize=undefined,address tests/test_limiter.cpp -o "$test_binary"
 # LeakSanitizer cannot run under ptrace in some Codex hosts; this core has no heap allocation.
 ASAN_OPTIONS=detect_leaks=0 "$test_binary"
-python3 scripts/sync-translations.py --check
+node tests/pwa.test.mjs
 node tests/i18n.test.mjs
 node tests/protocol.test.mjs
+node --check web/pwa.mjs
+node --check scripts/build-pwa.mjs
 node --check web/app.mjs
 node --check web/updater.mjs
 node tests/firmware.test.mjs

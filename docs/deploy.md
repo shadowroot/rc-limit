@@ -21,9 +21,9 @@ The Arduino commands below remain an optional fallback: add `--arduino` to ESP32
 
 See [CI and release downloads](releases.md) for prebuilt firmware and app artifacts.
 
-The scripts run on Linux/macOS with Bash. Windows users can use Git Bash with the Windows versions of Arduino CLI, Java, adb, Node and npm. Device names must be visible to those tools; Windows USB devices are not automatically available inside WSL.
+The scripts run on Linux/macOS with Bash. Windows users can use Git Bash with the Windows versions of Arduino CLI, Node and npm. Device names must be visible to those tools; Windows USB devices are not automatically available inside WSL.
 
-Run these commands from the project root. The scripts also work when invoked by absolute path from another directory. File arguments such as `--apk` resolve relative to the project root.
+Run these commands from the project root. The scripts also work when invoked by absolute path from another directory. File paths resolve relative to the project root.
 
 ## Optional Arduino CLI setup (once per checkout)
 
@@ -78,27 +78,6 @@ To compile without touching hardware:
 
 Native/PlatformIO artifacts go to `build/pio/TARGET/`, with compiler files in `.pio/build/TARGET/`. Arduino CLI artifacts go to `build/TARGET/`, with compiler files in `build/work-TARGET/`.
 
-## Install the native Android app
-
-Install Java 17/21, Android SDK 35, Build Tools 35.0.0, and platform-tools (`adb`). Configure the SDK through Android Studio, `ANDROID_HOME`, or `android/local.properties`. Enable USB debugging on the phone and approve its debugging prompt. List device IDs:
-
-```sh
-adb devices
-./scripts/deploy.sh android --serial YOUR_DEVICE_ID --launch
-```
-
-Local Android builds reuse Gradle’s daemon and build cache, so repeated builds avoid JVM startup and unchanged compilation. To stop the idle daemon, run `cd android && ./gradlew --stop`.
-
-This checks the specified device, builds a debug APK with the Gradle wrapper, copies it to `build/android/rc-limit-debug.apk`, installs it with `adb install -r`, and launches it when `--launch` is supplied. Without `--launch`, it installs only. A device ID is mandatory even when only one phone is connected. The scripts never select an arbitrary phone or emulator.
-
-Build an APK without connecting a device, or install an already built APK:
-
-```sh
-./scripts/deploy.sh android --build-only
-./scripts/deploy.sh android --serial YOUR_DEVICE_ID --apk build/android/rc-limit-debug.apk --launch
-```
-
-These are debug builds for local sideloading, not signed release/store deployments. `install -r` preserves existing app data when the signing identity is compatible. An incompatible signature causes installation to fail; the script does not uninstall the existing app or delete its data.
 
 ## Start the configuration interface
 
@@ -130,7 +109,6 @@ Append `--dry-run` anywhere:
 ```sh
 ./scripts/setup-firmware.sh all --dry-run
 ./scripts/deploy.sh esp32 --port /dev/ttyUSB0 --dry-run
-./scripts/deploy.sh android --serial YOUR_DEVICE_ID --launch --dry-run
 ```
 
 A dry run prints shell-quoted commands and does not run tools, create configuration, write artifacts, flash, install, or start servers. It does not prove that a port, SDK, mounted volume or toolchain is available. Syntax and option conflicts are still checked.
@@ -141,14 +119,16 @@ A dry run prints shell-quoted commands and does not run tools, create configurat
 |---|---|---|
 | `RC_LIMIT_ARDUINO_CLI` | `arduino-cli` | Arduino CLI executable path |
 | `RC_LIMIT_ARDUINO_CONFIG` | Project `.tools/arduino/arduino-cli.yaml` | Use a different Arduino configuration; absolute path recommended |
-| `RC_LIMIT_ADB` | `adb` | Android platform-tools executable path |
 | `RC_LIMIT_NPM` | `npm` | npm executable path |
 
 For example:
 
 ```sh
 RC_LIMIT_ARDUINO_CLI=/opt/arduino-cli ./scripts/setup-firmware.sh pico
-RC_LIMIT_ADB="$ANDROID_HOME/platform-tools/adb" ./scripts/deploy.sh android --serial YOUR_DEVICE_ID --apk build/android/rc-limit-debug.apk
 ```
 
 An existing overridden Arduino configuration is preserved. If you supply one, ensure it already includes the board index URLs shown in [build.md](build.md). The scripts do not use sudo, change device permissions, automatically install OS packages, enable receiver control, or select a Bluetooth connection. Pair Classic SPP through the OS; connect C3 BLE directly through the app's BLE chooser after deployment.
+
+## Install on a phone or desktop
+
+Open the [Pages app](https://shadowroot.github.io/rc-limit/) and use **Install app** / **Add to Home screen** in the browser. The same PWA is included in `rc-limit-web.zip`. No APK is built or installed. See [pwa.md](pwa.md) for offline behavior and USB/Bluetooth support.

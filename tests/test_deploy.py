@@ -29,7 +29,7 @@ if 'get-state' in sys.argv:
         self.config = self.base / "Arduino configuration.yaml"
         self.config.write_text("{}")
         self.env = {**os.environ, "RC_LIMIT_ARDUINO_CLI": str(self.tool),
-                    "RC_LIMIT_ARDUINO_CONFIG": str(self.config), "RC_LIMIT_ADB": str(self.tool),
+                    "RC_LIMIT_ARDUINO_CONFIG": str(self.config),
                     "RC_LIMIT_PIO": str(self.tool), "RC_TEST_LOG": str(self.log)}
 
     def run_script(self, *args, script="deploy.sh", **env):
@@ -39,8 +39,8 @@ if 'get-state' in sys.argv:
     def calls(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
 
-    def test_requires_explicit_board_or_phone(self):
-        for target in ["pico", "esp32", "esp32c3", "esp32c3-devkit", "android"]:
+    def test_requires_explicit_board(self):
+        for target in ["pico", "esp32", "esp32c3", "esp32c3-devkit"]:
             result = self.run_script(target)
             self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.calls(), [])
@@ -86,8 +86,7 @@ if 'get-state' in sys.argv:
         self.assertEqual(self.calls(), [])
 
     def test_dry_run_never_invokes_tools(self):
-        for args in [("pico", "--port", "/dev/test"), ("android", "--serial", "phone", "--launch"),
-                     ("web", "--port", "8090"), ("pio", "pico", "--build-only"), ("esp32c3", "--port", "/dev/test"), ("desktop", "--package")]:
+        for args in [("pico", "--port", "/dev/test"), ("web", "--port", "8090"), ("pio", "pico", "--build-only"), ("esp32c3", "--port", "/dev/test"), ("desktop", "--package")]:
             result = self.run_script(*args, "--dry-run")
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("Dry run", result.stdout)
@@ -96,18 +95,14 @@ if 'get-state' in sys.argv:
     def test_invalid_mount_and_conflicting_options_fail_before_build(self):
         for args in [("pico", "--mount", str(self.base)), ("esp32", "--mount", str(self.base)),
                      ("pico", "--build-only", "--port", "test"), ("web", "--port", "65536"),
-                     ("web", "--port", "0"), ("android", "--build-only", "--launch")]:
+                     ("web", "--port", "0")]:
             self.assertNotEqual(self.run_script(*args).returncode, 0)
         self.assertEqual(self.calls(), [])
 
-    def test_android_installs_exact_apk_on_selected_phone(self):
-        apk = self.base / "my app.apk"
-        apk.write_bytes(b"mock")
-        result = self.run_script("android", "--serial", "PHONE123", "--apk", str(apk), "--launch")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.calls(), [["-s", "PHONE123", "get-state"],
-                                       ["-s", "PHONE123", "install", "-r", str(apk)],
-                                       ["-s", "PHONE123", "shell", "am", "start", "-n", "dev.rclimit/.MainActivity"]])
+    def test_removed_native_target_is_rejected(self):
+        result = self.run_script("android", "--build-only")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.calls(), [])
 
     def test_setup_uses_pinned_versions_and_isolated_config(self):
         result = self.run_script("pico", script="setup-firmware.sh")

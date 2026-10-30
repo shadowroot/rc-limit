@@ -1,6 +1,6 @@
 # Board layouts and suggested RC pins
 
-Use the **Board layouts, suggested pins & 5 V input resistors** panel under Pin mapping in the web/Electron GUI, or **Board layouts / suggested GPIOs / 5 V resistors** in native Android. These are top/component views, not underside/solder views. USB orientation is stated for each diagram. Numbers such as GP4/GPIO4 are MCU GPIOs; connector/header numbers are shown separately. Match the exact board revision and printed labels before wiring.
+Use the **Board layouts, suggested pins & 5 V input resistors** panel under Pin mapping in the web/Electron/PWA GUI. These are top/component views, not underside/solder views. USB orientation is stated for each diagram. Numbers such as GP4/GPIO4 are MCU GPIOs; connector/header numbers are shown separately. Match the exact board revision and printed labels before wiring.
 
 | Board | Build target | Configuration transports | Suggested first input → output |
 |---|---|---|---|
@@ -11,7 +11,7 @@ Use the **Board layouts, suggested pins & 5 V input resistors** panel under Pin 
 
 All four targets support 1–4 mappings and the same JSON configuration protocol. Every GPIO listed here is **3.3 V logic**, not a 5 V receiver input. A power pin marked 5V is different from GPIO5. For a measured 5 V receiver signal use the divider or buffer in [wiring.md](wiring.md).
 
-The original ESP32's Classic SPP and the C3's BLE UART are different transports. Use the serial chooser for USB/Classic and **Connect C3 BLE serial** for BLE. The C3 does not gain Bluetooth Classic support from this firmware. In Android, **Bluetooth** lists paired Classic devices; **BLE C3** scans for the UART service without requiring prior OS pairing.
+The original ESP32's Classic SPP and the C3's BLE UART are different transports. Use the serial chooser for USB/Classic and **Connect C3 BLE serial** for BLE. The C3 does not gain Bluetooth Classic support from this firmware. In the PWA, C3 BLE uses the same browser chooser; Classic uses Web Serial where supported.
 
 ## Raspberry Pi Pico (RP2040)
 

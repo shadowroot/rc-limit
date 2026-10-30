@@ -18,7 +18,8 @@
     "prestart": "npm run build:web",
     "prepackage": "npm run build:web",
     "package:win": "npm run build:web && electron-builder --win nsis portable --x64 --publish never",
-    "package:web": "npm run build:web && python3 scripts/package-web.py"
+    "package:web": "npm run build:web && python3 scripts/package-web.py",
+    "test:pwa": "node tests/pwa-smoke.cjs"
   },
   "devDependencies": {
     "electron": "43.8.4",
@@ -26,6 +27,7 @@
     "esbuild": "0.28.2",
     "esptool-js": "0.7.0",
     "fflate": "0.8.3",
+    "playwright": "1.64.1",
     "spark-md5": "3.0.2"
   },
   "build": {

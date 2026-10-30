@@ -13,8 +13,6 @@ Usage (run from any directory):
   scripts/deploy.sh esp32c3 --port /dev/ttyACM0
   scripts/deploy.sh esp32c3-devkit --port /dev/ttyUSB0
   scripts/deploy.sh pico|esp32|esp32c3|esp32c3-devkit --build-only
-  scripts/deploy.sh android --serial DEVICE_ID [--launch] [--apk FILE]
-  scripts/deploy.sh android --build-only
   scripts/deploy.sh web [--port 8080]
   scripts/deploy.sh desktop [--install] [--package]
 
@@ -91,41 +89,6 @@ case "$action" in
       rc_arduino upload --fqbn "$fqbn" --port "$port" --input-dir "$output" "$RC_ROOT/firmware/rc_limiter"
       printf 'Firmware upload finished. Confirm saved settings before connecting motor power.\n'
     fi
-    ;;
-  android)
-    serial=; apk=; launch=0; build_only=0
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --serial|--apk)
-          [[ $# -ge 2 && -n "$2" ]] || rc_die "Missing value for $1."
-          if [[ "$1" == --serial ]]; then serial=$2; else apk=$2; fi
-          shift 2 ;;
-        --build-only) build_only=1; shift ;;
-        --launch) launch=1; shift ;;
-        *) rc_die "Unknown Android option: $1" ;;
-      esac
-    done
-    if [[ "$build_only" == 1 ]]; then
-      [[ -z "$serial" && -z "$apk" && "$launch" == 0 ]] || rc_die '--build-only cannot be combined with install options.'
-    else
-      [[ -n "$serial" ]] || rc_die 'Select --serial from adb devices. No phone is selected automatically.'
-      adb=${RC_LIMIT_ADB:-adb}; rc_need "$adb"
-      rc_run "$adb" -s "$serial" get-state
-    fi
-    if [[ -z "$apk" ]]; then
-      rc_need java
-      (cd "$RC_ROOT/android"; rc_run ./gradlew assembleDebug)
-      apk="$RC_ROOT/build/android/rc-limit-debug.apk"
-      rc_run mkdir -p "$RC_ROOT/build/android"
-      rc_run cp "$RC_ROOT/android/app/build/outputs/apk/debug/app-debug.apk" "$apk"
-    else
-      [[ "$RC_DRY_RUN" == 1 || -f "$apk" ]] || rc_die "APK does not exist: $apk"
-    fi
-    if [[ "$build_only" == 0 ]]; then
-      rc_run "$adb" -s "$serial" install -r "$apk"
-      if [[ "$launch" == 1 ]]; then rc_run "$adb" -s "$serial" shell am start -n dev.rclimit/.MainActivity; fi
-    fi
-    printf 'Android APK: %s\n' "$apk"
     ;;
   web)
     port=8080
