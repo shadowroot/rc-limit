@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('stable', ROOT / 'scripts/fetch-stable-firmware.py')
 stable = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(stable)
+devspec = importlib.util.spec_from_file_location('development', ROOT / 'scripts/fetch-development-firmware.py')
+development = importlib.util.module_from_spec(devspec)
+devspec.loader.exec_module(development)
 
 
 def fixture(manifests=False):
@@ -64,6 +67,26 @@ class StableFirmwareTests(unittest.TestCase):
         release, data = fixture();release['assets'] = [item for item in release['assets'] if item['name'] != 'rc-limit-esp32.zip']
         with self.assertRaisesRegex(ValueError, 'missing'):
             stable.collect(release, lambda url, **kwargs: data[url])
+
+    def test_development_is_separate_and_checks_all_hashes(self):
+        release, data = fixture(manifests=True)
+        release['prerelease'] = True
+        release['tag_name'] = 'dev-22-test'
+        catalog, files = stable.collect(release, lambda url, **kwargs: data[url], 'development')
+        self.assertEqual(catalog['release']['tag'], 'dev-22-test')
+        self.assertEqual(set(files), {f'development/rc-limit-{board}.zip' for board in stable.BOARDS})
+        with self.assertRaises(ValueError): stable.collect(release, lambda url, **kwargs: data[url], 'stable')
+        data['rc-limit-pico.zip'] += b'corruption'
+        with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
+            stable.collect(release, lambda url, **kwargs: data[url], 'development')
+
+    def test_latest_development_excludes_stable_and_drafts(self):
+        items = [dict(tag_name='stable', draft=False, prerelease=False, published_at='2026-11-01'),
+                 dict(tag_name='old', draft=False, prerelease=True, published_at='2026-10-20'),
+                 dict(tag_name='new', draft=False, prerelease=True, published_at='2026-10-30'),
+                 dict(tag_name='draft', draft=True, prerelease=True, published_at='2026-12-01')]
+        self.assertEqual(development.latest_development(items)['tag_name'], 'new')
+        self.assertIsNone(development.latest_development(items[:1]))
 
     def test_github_token_is_not_forwarded_to_asset_redirect_host(self):
         request = urllib.request.Request('https://api.github.com/releases/asset', headers={'Authorization': 'Bearer secret'})

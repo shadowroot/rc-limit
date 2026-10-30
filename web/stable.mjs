@@ -1,13 +1,14 @@
 import { sha256 } from './firmware.mjs';
-export function validateCatalog(catalog) {
-  if (catalog?.version !== 1 || !Array.isArray(catalog.boards)) throw new Error('Invalid stable firmware catalog.');
+export function validateCatalog(catalog, channel = 'stable') {
+  if (!['stable', 'development'].includes(channel)) throw new Error('Invalid firmware channel.');
+  if (catalog?.version !== 1 || !Array.isArray(catalog.boards)) throw new Error('Invalid firmware catalog.');
   if (catalog.release === null && catalog.boards.length === 0) return catalog;
-  if (!catalog.release || typeof catalog.release.tag !== 'string' || catalog.boards.length !== 4) throw new Error('Incomplete stable firmware catalog.');
+  if (!catalog.release || typeof catalog.release.tag !== 'string' || catalog.boards.length !== 4) throw new Error('Incomplete firmware catalog.');
   const expected = new Set(['pico', 'esp32', 'esp32c3', 'esp32c3-devkit']);
   for (const item of catalog.boards) {
-    if (!expected.delete(item.board) || item.file !== `stable/rc-limit-${item.board}.zip` ||
+    if (!expected.delete(item.board) || item.file !== `${channel}/rc-limit-${item.board}.zip` ||
         !/^[a-f0-9]{64}$/.test(item.sha256) || !Number.isSafeInteger(item.size) || item.size < 1 || item.size > 6 * 1024 * 1024)
-      throw new Error('Invalid stable firmware package.');
+      throw new Error('Invalid firmware package.');
   }
   return catalog;
 }

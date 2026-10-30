@@ -88,8 +88,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/fetch-stable-firmware.py
-      - name: Package standalone UI with stable firmware
+      - name: Bundle latest development prerelease
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/fetch-development-firmware.py
+      - name: Package standalone UI with firmware
         run: python3 scripts/package-web.py
+      - name: Verify bundled firmware selection in the PWA
+        run: CHROMIUM_PATH="$(node -p "require('playwright').chromium.executablePath()")" RC_LIMIT_WEB_ZIP=build/releases/rc-limit-web.zip npm run test:pwa
       - uses: actions/upload-artifact@v4
         with:
           name: app-web
@@ -165,3 +171,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/publish-release.py release-assets
+
+  refresh-pages-after-development:
+    if: github.ref == 'refs/heads/main'
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - name: Refresh Pages after publishing the development release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run pages.yml --ref main
