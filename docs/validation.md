@@ -1,5 +1,9 @@
 # Verification record
 
+## Automatic release correction (2026-10-30)
+
+The hosted PWA main build `41017131592` passed every check/build job but skipped `release`: only version-tag pushes matched the old condition, and the repository had no tags/releases. The workflow now publishes complete development prereleases after successful main builds, while preserving reviewed version-tag drafts and stable firmware selection. Actionlint and eight mocked publication tests passed: full asset gating, exact source targeting, main/manual-main versus feature/PR permissions, draft-before-upload ordering, upload failure, API error, draft resumption and published-release preservation. These tests do not contact GitHub or publish binaries.
+
 ## Web PWA replacement (2026-10-30)
 
 The native Android source, Gradle wrapper/resources, deployment target, translation generator and CI/release job were removed at the user's request. Prior Android results below describe historical revisions only.

@@ -6,7 +6,7 @@ Configure it with the installable **web PWA** or the **Electron desktop app**. C
 
 This limits the ESC command, not measured motor speed, current, torque, or power. A 30% limit means 30% of the calibrated pulse excursion from stop. It is a bench prototype, with hardware commissioning still required.
 
-Firmware uses **PlatformIO**, with **native ESP-IDF** on ESP32/C3 and Arduino-Pico on Pico. [CI and releases](docs/releases.md) provide firmware, Linux/Windows desktop and web PWA downloads.
+Firmware uses **PlatformIO**, with **native ESP-IDF** on ESP32/C3 and Arduino-Pico on Pico. [CI and releases](docs/releases.md) provide firmware, Linux/Windows desktop and web PWA downloads. Successful `main` builds publish [development prereleases](https://github.com/shadowroot/rc-limit/releases); reviewed `v*` tags remain the stable-release path.
 
 Use **Update firmware over USB** in the web/Electron GUI to verify a release ZIP and flash ESP32/C3, or export a Pico BOOTSEL UF2. See [firmware updates](docs/firmware-updates.md).
 

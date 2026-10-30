@@ -110,7 +110,7 @@ For hardware deployment, require explicit selection via `--port`, Pico `--mount`
 
 ## CI and releases
 
-`.github/workflows/build.yml` runs checks and all four PlatformIO builds, Linux Electron packaging and web archiving. `v*` tag pushes create draft releases only after all jobs succeed. Packages must contain board identity, source commit, checksums and flashing instructions; never publish an application-only ESP binary as a complete fresh-device image. No hardware is flashed by CI. See `docs/releases.md`.
+`.github/workflows/build.yml` runs checks and all four PlatformIO builds, Linux Electron packaging and web archiving. Successful `main` pushes/manual main builds publish development prereleases with all artifacts; `v*` tag pushes create drafts for reviewed stable releases. Feature branches and PRs never publish. Development tags are CI-generated at the exact signed source commit; stable tags remain locally GPG-signed. Never overwrite published releases or relabel development firmware as stable. Packages must contain board identity, source commit, checksums and flashing instructions; never publish an application-only ESP binary as a complete fresh-device image. No hardware is flashed by CI. See `docs/releases.md`.
 
 GitHub Pages deploys `web/` through `.github/workflows/pages.yml` only from main after checks and static ZIP validation. PRs validate without deployment. Keep the README ZIP download and independent `app-web` CI artifact available. Preserve relative paths and the `/rc-limit/` integration test. Repository Pages source must be configured as GitHub Actions.
 
