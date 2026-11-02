@@ -1,6 +1,6 @@
 import { initPwa } from './pwa.mjs';
 import { t, bindText, initLanguage } from './i18n.mjs';
-import { fields, defaults, validateDeviceName, validate, validateMappings, profile, nextMapping, Protocol } from './protocol.mjs';
+import { fields, defaults, calibrateRadio, validateDeviceName, validate, validateMappings, profile, nextMapping, Protocol } from './protocol.mjs';
 import { openBle } from './ble.mjs';
 import { loadBoardProfiles, drawBoard, boardForFirmware } from './boards.mjs';
 await initLanguage();
@@ -29,11 +29,24 @@ function form() {
   return validate(config);
 }
 fill(defaults);
+let captures = {}, captureBusy = false, calibrationEpoch = 0;
+const capturePositions = ['forward', 'backward', 'neutral'];
+function renderCalibration() {
+  $('calibration-status').textContent = Object.keys(captures).length ? capturePositions.map(key => t('{position}: {pulse}', { position: t({ forward: 'Full throttle', backward: 'Full backward', neutral: 'Neutral' }[key]), pulse: captures[key] === undefined ? '—' : `${captures[key]} µs` })).join(' · ') : t("Capture all three positions to update this mapping's draft.");
+}
+function resetCalibration() {
+  captures = {}; calibrationEpoch++;
+  renderCalibration();
+}
+function calibrationButtons(connected) {
+  for (const position of capturePositions) $('capture-' + position).disabled = !connected || captureBusy;
+}
 let lastDeviceName, lastDeviceId;
 const configurable = data => data?.configurable ?? !data?.armed;
 let draftMappings = [{ ...defaults }], selectedMapping = 0, boardName, latestData, protocolVersion = 1;
 function stashMapping() { draftMappings[selectedMapping] = form(); }
 function renderMappings() {
+  resetCalibration();
   $('mapping-select').replaceChildren(...draftMappings.map((c, i) => new Option(`${i + 1}: GPIO${c.input_pin} → GPIO${c.output_pin}`, i)));
   $('mapping-select').value = selectedMapping;
   $('add-mapping').disabled = draftMappings.length >= 4 || !configurable(latestData);
@@ -62,7 +75,7 @@ function renderBoardGuide() {
     button.textContent = t(`${i + 1}: GPIO${input} → GPIO${output}`);
     button.disabled = !configurable(latestData) || (!!boardName && !!protocol && board.firmware !== boardName);
     button.onclick = () => {
-      controls.input_pin.value = input; controls.output_pin.value = output; renderBoardGuide();
+      controls.input_pin.value = input; controls.output_pin.value = output; resetCalibration(); renderBoardGuide();
       message('Suggested GPIOs filled into the selected draft mapping. Check all mapping conflicts, then Apply all.');
     }; suggestions.append(button);
   });
@@ -75,9 +88,11 @@ loadBoardProfiles().then(profiles => {
 }).catch(error => { $('board-notes').textContent = error.message; });
 $('board-layout').onchange = renderBoardGuide;
 for (const key of ['input_pin', 'output_pin']) controls[key].addEventListener('input', renderBoardGuide);
+controls.input_pin.addEventListener('input', resetCalibration);
 let lastMessage = '';
 function message(text) { lastMessage = text || ''; $('message').textContent = t(lastMessage); }
 function deviceButtons(connected) {
+  calibrationButtons(connected);
   document.querySelectorAll('[data-device]').forEach(b => b.disabled = !connected);
   $('connect').disabled = connected || connecting || updatingFirmware; $('disconnect').disabled = !connected;
   $('connect-ble').disabled = connected || connecting || updatingFirmware;
@@ -191,6 +206,7 @@ async function disconnect(notify = true) {
   $('control-state').textContent = t('UNKNOWN'); $('signal').textContent = t('No live telemetry');
   $('input').textContent = $('output').textContent = t('—');
   $('mapping-summary').textContent = t('Disconnected; read the board to view live mappings.');
+  resetCalibration();
   latestData = undefined; lastDeviceName = lastDeviceId = undefined;
   $('device-identity').textContent = t('Disconnected; reconnect to identify the board.');
   $('add-mapping').disabled = draftMappings.length >= 4;
@@ -207,6 +223,29 @@ async function action(cmd, extra = {}, load = false) {
       get: 'Board settings loaded into the form.' })[cmd]);
   } catch (error) { message(error.message); }
 }
+for (const position of capturePositions) $('capture-' + position).onclick = async () => {
+  if (!protocol || captureBusy) return;
+  const current = protocol, mapping = selectedMapping, pin = Number(controls.input_pin.value), epoch = calibrationEpoch;
+  captureBusy = true; calibrationButtons(true);
+  try {
+    const data = await current.request('get');
+    if (protocol !== current || mapping !== selectedMapping || pin !== Number(controls.input_pin.value) || epoch !== calibrationEpoch) return;
+    const index = data.mappings ? data.mappings.findIndex(c => c.input_pin === pin) : data.config?.input_pin === pin ? 0 : -1;
+    if (index < 0) throw new Error('Apply this receiver input GPIO to the board before calibration.');
+    const state = data.channel_states ? data.channel_states[index] : index === 0 ? data : undefined;
+    const pulse = state?.input_us;
+    if (!state?.signal_ok || !Number.isInteger(pulse) || pulse < 800 || pulse > 2200)
+      throw new Error('No valid receiver pulse. Check the radio and receiver connection.');
+    captures[position] = pulse;
+    renderCalibration();
+    if (capturePositions.every(key => captures[key] !== undefined)) {
+      const config = calibrateRadio(form(), captures);
+      fill(config); draftMappings[selectedMapping] = config;
+      message('Radio calibration added to draft. Return all inputs to neutral, then Apply all mappings and Save to flash.');
+    }
+  } catch (error) { message(error.message); }
+  finally { captureBusy = false; calibrationButtons(!!protocol); }
+};
 $('config-form').addEventListener('submit', e => e.preventDefault());
 $('connect').onclick = connect;
 $('connect-ble').onclick = connectBle;
@@ -298,6 +337,7 @@ $('firmware-update').addEventListener('toggle', async () => {
 
 window.addEventListener('rc-language-change', () => {
   for (const [key, labels] of Object.entries(selects)) [...controls[key].options].forEach((option, i) => { option.textContent = t(labels[i]); });
+  renderCalibration();
   if (latestData) status(latestData);
   else { renderBoardGuide(); $('connection').textContent = t('OFFLINE'); }
   message(lastMessage);

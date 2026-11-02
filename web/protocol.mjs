@@ -120,3 +120,11 @@ export function validateDeviceName(name) {
     throw new Error('Use 1–16 letters, numbers, spaces, dots, underscores or hyphens, without outer spaces.');
   return name;
 }
+
+// Keep captures atomic: incomplete or invalid samples never change the draft.
+export function calibrateRadio(config, { forward, backward, neutral }) {
+  if (![forward, backward, neutral].every(pulse => Number.isInteger(pulse) && pulse >= 800 && pulse <= 2200))
+    throw new Error('Capture three valid receiver pulses within 800–2200 µs.');
+  return validate({ ...config, input_min: Math.min(forward, backward), input_max: Math.max(forward, backward),
+    input_neutral: neutral, invert: forward < backward ? 1 : 0 });
+}

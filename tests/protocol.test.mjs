@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Protocol, validateDeviceName, defaults, validate, validateMappings, profile, nextMapping } from '../web/protocol.mjs';
+import { Protocol, calibrateRadio, validateDeviceName, defaults, validate, validateMappings, profile, nextMapping } from '../web/protocol.mjs';
 
 test('multiple mappings validate pins, fan-out, unique outputs and Pico PWM aliases', () => {
   const first = { ...defaults };
@@ -83,4 +83,18 @@ test('device names validate consistently without changing profile contents', () 
   for(const name of ['Boat port ESC','Boat-starboard','A','A.B_C-1234567890']) assert.equal(validateDeviceName(name),name);
   for(const name of ['', ' leading','trailing ','12345678901234567','Boat\nESC','Boat/ESC','Böt', null]) assert.throws(()=>validateDeviceName(name));
   assert.deepEqual(Object.keys(profile({version:2,mappings:[defaults]})).sort(),['mappings','version']);
+});
+
+test('radio captures validate all three positions and detect reversed throttle', () => {
+  for (const reversed of [false, true]) {
+    const calibrated = calibrateRadio(defaults, { forward: reversed ? 1050 : 1950, backward: reversed ? 1950 : 1050, neutral: 1480 });
+    assert.equal(calibrated.input_min, 1050);
+    assert.equal(calibrated.input_max, 1950);
+    assert.equal(calibrated.input_neutral, 1480);
+    assert.equal(calibrated.invert, Number(reversed));
+    assert.equal(calibrated.output_neutral, defaults.output_neutral);
+  }
+  for (const samples of [{ forward: 2000, backward: 1000 }, { forward: 2000, backward: 2000, neutral: 1500 },
+    { forward: 2000, backward: 1000, neutral: 2100 }, { forward: 2300, backward: 1000, neutral: 1500 },
+    { forward: 2000, backward: 1490, neutral: 1500 }]) assert.throws(() => calibrateRadio(defaults, samples));
 });

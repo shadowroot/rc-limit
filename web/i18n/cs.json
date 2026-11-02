@@ -346,5 +346,20 @@
   "Invalid firmware channel.": "Neplatný kanál firmwaru.",
   "Invalid firmware catalog.": "Neplatný katalog firmwaru.",
   "Incomplete firmware catalog.": "Neúplný katalog firmwaru.",
-  "Invalid firmware package.": "Neplatný balíček firmwaru."
+  "Invalid firmware package.": "Neplatný balíček firmwaru.",
+  "Hold each radio position, then capture its receiver pulse.": "Držte jednotlivé polohy ovladače a zaznamenejte impulz přijímače.",
+  "Disconnect motor power before capturing full throttle or full backward. Receiver control continues during calibration.": "Před zaznamenáním plného plynu nebo plné zpátečky odpojte napájení motoru. Během kalibrace zůstává řízení přijímačem aktivní.",
+  "Capture full throttle": "Zaznamenat plný plyn",
+  "Capture full backward": "Zaznamenat plnou zpátečku",
+  "Capture neutral": "Zaznamenat neutrál",
+  "Capture all three positions to update this mapping's draft.": "Zaznamenejte všechny tři polohy pro aktualizaci návrhu tohoto přiřazení.",
+  "Advanced: manual receiver calibration": "Pokročilé: ruční kalibrace přijímače",
+  "Full throttle": "Plný plyn",
+  "Full backward": "Plná zpátečka",
+  "Neutral": "Neutrál",
+  "{position}: {pulse}": "{position}: {pulse}",
+  "Capture three valid receiver pulses within 800–2200 µs.": "Zaznamenejte tři platné impulzy přijímače v rozsahu 800–2200 µs.",
+  "Apply this receiver input GPIO to the board before calibration.": "Před kalibrací použijte tento vstupní GPIO přijímače na desce.",
+  "No valid receiver pulse. Check the radio and receiver connection.": "Chybí platný impulz přijímače. Zkontrolujte vysílač a připojení přijímače.",
+  "Radio calibration added to draft. Return all inputs to neutral, then Apply all mappings and Save to flash.": "Kalibrace vysílače byla přidána do návrhu. Vraťte všechny vstupy do neutrálu, poté použijte všechna přiřazení a uložte do flash."
 }

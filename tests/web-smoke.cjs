@@ -35,8 +35,8 @@ async function main() {
         if (request.cmd === 'save') saved = true;
         if (['arm','disarm'].includes(request.cmd)) throw new Error('Manual control command sent');
         const response = { device_name: deviceName, device_id: '001122ABC123', name_pending_restart: deviceName !== 'Pico-ABC123', id: request.id, ok: !error, error, board, active, configurable, saved, revision,
-          signal_ok: true, input_us: 1500, output_us: 1500, config: mappings[0], protocol_version: 3, control_mode: 'automatic_neutral',
-          max_mappings: 4, mappings, channel_states: mappings.map(() => ({ input_us: 1500, output_us: 1500, signal_ok: true, active })),
+          signal_ok: window.simulatedSignal ?? true, input_us: window.simulatedPulse ?? 1500, output_us: 1500, config: mappings[0], protocol_version: 3, control_mode: 'automatic_neutral',
+          max_mappings: 4, mappings, channel_states: mappings.map(() => ({ input_us: window.simulatedPulse ?? 1500, output_us: 1500, signal_ok: window.simulatedSignal ?? true, active })),
           transports: { usb_serial: true, bluetooth_serial: board !== 'pico', bluetooth_type: board === 'esp32c3' ? 'ble' : 'classic_spp', usb_interface: 'native_cdc', bluetooth_name: board === 'esp32c3' ? 'RC-Limiter-C3' : 'RC-Limiter' } };
         emit(new TextEncoder().encode(JSON.stringify(response) + '\n'));
       }
@@ -87,6 +87,32 @@ async function main() {
     assert.equal(await page.locator('#arm, #disarm').count(), 0);
     await page.locator('#connect').click();
     await page.waitForFunction(() => document.getElementById('connection').textContent === 'CONNECTED');
+    assert.equal(await page.locator('#input_neutral').isVisible(), false);
+    await page.evaluate(() => { window.simulatedPulse = 1060; });
+    await page.locator('#capture-forward').click();
+    await page.waitForFunction(() => document.getElementById('calibration-status').textContent.includes('1060'));
+    assert.equal(await page.locator('#input_min').inputValue(), '1000'); // Partial captures leave the draft alone.
+    await page.evaluate(() => { window.simulatedPulse = 1940; });
+    await page.locator('#capture-backward').click();
+    await page.waitForFunction(() => document.getElementById('calibration-status').textContent.includes('1940'));
+    await page.evaluate(() => { window.simulatedSignal = false; });
+    await page.locator('#capture-neutral').click();
+    await page.waitForFunction(() => document.getElementById('message').textContent.includes('No valid receiver pulse'));
+    assert.equal(await page.locator('#input_min').inputValue(), '1000');
+    await page.evaluate(() => { window.simulatedSignal = true; window.simulatedPulse = 1490; });
+    await page.locator('#capture-neutral').click();
+    await page.waitForFunction(() => document.getElementById('message').textContent.startsWith('Radio calibration added'));
+    assert.equal(await page.locator('#input_min').inputValue(), '1060');
+    assert.equal(await page.locator('#input_max').inputValue(), '1940');
+    assert.equal(await page.locator('#input_neutral').inputValue(), '1490');
+    assert.equal(await page.locator('#invert').inputValue(), '1');
+    assert.equal(await page.evaluate(() => window.simulatedMappings[0].input_min), 1000); // No implicit write.
+    await page.locator('#receiver-advanced summary').click();
+    assert.equal(await page.locator('#input_neutral').isVisible(), true);
+    await page.locator('#read').click();
+    await page.waitForFunction(() => document.getElementById('input_min').value === '1000');
+    await page.locator('#receiver-advanced summary').click();
+    await page.evaluate(() => { window.simulatedPulse = 1500; });
     await page.locator('#device-name').fill('Boat port ESC');
     await page.waitForTimeout(600); // Telemetry must preserve the unsaved name draft.
     assert.equal(await page.locator('#device-name').inputValue(), 'Boat port ESC');

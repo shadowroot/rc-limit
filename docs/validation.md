@@ -1,5 +1,15 @@
 # Verification record
 
+## Radio capture calibration (2026-11-02)
+
+Receiver calibration now captures full throttle, full backward and neutral into the selected draft mapping, including automatic receiver-direction detection. Manual receiver pulse values and deadband are under a collapsed Advanced section. Apply and Save remain separate.
+
+- `bash scripts/check.sh` passed, including portable limiter checks and protocol/profile tests. Radio calibration tests cover normal/reversed endpoints, incomplete samples, out-of-range pulses, invalid neutral ordering and insufficient deadband spans.
+- Chromium integration passed with simulated USB/BLE devices, including partial captures leaving the draft unchanged, signal-loss rejection, reversed throttle capture, manual fields hidden until expanded, and no implicit board configuration writes.
+- Rebuilt the tracked web ZIP; its content check and packaged PWA Chromium test passed, including offline Czech startup and waiting service-worker updates under `/rc-limit/`.
+
+No physical radio, receiver, board or ESC was used. Actual pulse accuracy, transmitter positions and motor behavior still require the commissioning checks with motor power disconnected during calibration.
+
 ## Firmware visibility in the web app (2026-10-30)
 
 The stable catalog was empty because only a development prerelease existed. The published prerelease `dev-22-d1956ced9215` was downloaded and its outer SHA-256 sums, four board ZIPs and updater manifests validated. Chromium loaded the real C3 package through the development selector from a packaged web distribution, verified it without hardware, and confirmed that the flashing control stayed disabled until acknowledgement. Repository tests cover channel separation, malformed/missing packages and checksums; PWA offline/update behavior and Electron startup also passed. No physical board was flashed.
