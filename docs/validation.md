@@ -1,5 +1,11 @@
 # Verification record
 
+## Required transmitter calibration and Advanced ESC settings (2026-11-03)
+
+ESC calibration is collapsed under Advanced. The app opens transmitter captures when completion is missing, blocks normal Apply/Save until every draft input has matching completion, and checks applied receiver values before saving flash. Completion is recorded in browser storage per board identity and receiver settings. New-input setup applies zero limits to unverified mappings while retaining draft limits. Forward-only capture accepts an endpoint neutral. Firmware fields and startup behavior are unchanged.
+
+Repository checks and simulated Chromium USB/BLE tests passed, covering blocked uncalibrated Apply/Save, zero-limit pin setup, capture validation, Save rejection before captured values are applied, completion after a full reload, changed direction requiring calibration again, and hidden ESC fields. Unit checks cover board identity separation, receiver-setting changes, explicit restart, corrupt/unavailable storage and forward-only captures. The web ZIP was rebuilt; packaged Chromium PWA installability, offline Czech startup and waiting-update tests passed. No physical hardware was connected or flashed.
+
 ## RC transmitter calibration entry and reload (2026-11-02)
 
 The receiver section now has a **Calibrate RC transmitter** button that reveals the three capture actions, plus **Load values from board**. Connecting automatically loads and displays the selected mapping's backward, neutral and throttle values; reloading discards unsaved draft edits. Repository checks and simulated Chromium USB/BLE integration passed. The tracked web ZIP was rebuilt. No physical radio or board was used.

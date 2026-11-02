@@ -125,6 +125,29 @@ export function validateDeviceName(name) {
 export function calibrateRadio(config, { forward, backward, neutral }) {
   if (![forward, backward, neutral].every(pulse => Number.isInteger(pulse) && pulse >= 800 && pulse <= 2200))
     throw new Error('Capture three valid receiver pulses within 800–2200 µs.');
+  if (!config.bidirectional && Math.abs(neutral - backward) > config.deadband)
+    throw new Error('Forward-only neutral must match the full backward / stop position.');
   return validate({ ...config, input_min: Math.min(forward, backward), input_max: Math.max(forward, backward),
-    input_neutral: neutral, invert: forward < backward ? 1 : 0 });
+    input_neutral: config.bidirectional ? neutral : Math.round((forward + backward) / 2), invert: forward < backward ? 1 : 0 });
+}
+
+// App-local completion records never change firmware fields or imported profiles.
+export class RadioCalibrations {
+  constructor(storage) {
+    this.storage = storage;
+    try {
+      const saved = JSON.parse(storage?.getItem('rc-limit-radio-calibrations') || '[]');
+      this.records = new Set(Array.isArray(saved) ? saved.filter(key => typeof key === 'string') : []);
+    } catch { this.records = new Set(); }
+  }
+  key(device, c) {
+    return JSON.stringify([device, c.input_pin, c.input_min, c.input_neutral, c.input_max, c.invert, c.bidirectional, c.deadband]);
+  }
+  has(device, config) { return !!device && this.records.has(this.key(device, config)); }
+  set(device, config, complete = true) {
+    if (!device) return;
+    const key = this.key(device, config);
+    if (complete) this.records.add(key); else this.records.delete(key);
+    try { this.storage?.setItem('rc-limit-radio-calibrations', JSON.stringify([...this.records])); } catch { /* Keep this session's record. */ }
+  }
 }

@@ -1,12 +1,18 @@
 import { initPwa } from './pwa.mjs';
 import { t, bindText, initLanguage } from './i18n.mjs';
-import { fields, defaults, calibrateRadio, validateDeviceName, validate, validateMappings, profile, nextMapping, Protocol } from './protocol.mjs';
+import { fields, defaults, calibrateRadio, RadioCalibrations, validateDeviceName, validate, validateMappings, profile, nextMapping, Protocol } from './protocol.mjs';
 import { openBle } from './ble.mjs';
 import { loadBoardProfiles, drawBoard, boardForFirmware } from './boards.mjs';
 await initLanguage();
 initPwa();
 const $ = id => document.getElementById(id);
 const controls = {};
+let calibrationStorage;
+try { calibrationStorage = localStorage; } catch { /* Completion remains session-local. */ }
+const radioCalibrations = new RadioCalibrations(calibrationStorage);
+const sessionDevice = `session-${Date.now()}-${Math.random()}`;
+const calibrationDevice = () => latestData ? `${latestData.board}:${latestData.device_id || sessionDevice}` : undefined;
+const rawConfig = () => Object.fromEntries(Object.entries(controls).map(([key, input]) => [key, Number(input.value)]));
 const selects = { bidirectional: ['Forward only', 'Bidirectional'], scale: ['Clamp at limit', 'Scale full stick travel'], invert: ['Normal', 'Inverted'] };
 for (const [key, label, group] of fields) {
   const wrapper = document.createElement('label');wrapper.append(bindText(document.createTextNode(''), label));
@@ -41,6 +47,7 @@ function resetCalibration() {
 function calibrationButtons(connected) {
   $('start-calibration').disabled = !connected || captureBusy;
   $('load-calibration').disabled = !connected || captureBusy;
+  $('prepare-calibration').disabled = !connected || captureBusy || !configurable(latestData);
   for (const position of capturePositions) $('capture-' + position).disabled = !connected || captureBusy;
 }
 let lastDeviceName, lastDeviceId;
@@ -61,6 +68,19 @@ function renderMappings() {
   $('remove-mapping').disabled = draftMappings.length <= 1 || !configurable(latestData);
   fill(draftMappings[selectedMapping]);
   renderLoadedCalibration();
+  renderCalibrationRequirement();
+}
+function renderCalibrationRequirement() {
+  const complete = radioCalibrations.has(calibrationDevice(), rawConfig());
+  $('calibration-required').textContent = t(complete ? 'Transmitter calibration complete for these receiver settings.' : 'Transmitter calibration required. Capture all three positions before applying or saving.');
+  $('calibration-controls').hidden = !latestData || complete;
+}
+function requireCalibrated(mappings) {
+  const missing = mappings.findIndex(c => !radioCalibrations.has(calibrationDevice(), c));
+  if (missing < 0) return;
+  selectedMapping = missing; renderMappings();
+  $('receiver').scrollIntoView({ block: 'center' });
+  throw new Error('Transmitter calibration required. Capture all three positions before applying or saving.');
 }
 function loadMappings(data) {
   loadedMappings = profile(data.mappings ? { version: 2, mappings: data.mappings } : data.config, data.board).mappings.map(c => ({ ...c }));
@@ -85,7 +105,7 @@ function renderBoardGuide() {
     button.textContent = t(`${i + 1}: GPIO${input} → GPIO${output}`);
     button.disabled = !configurable(latestData) || (!!boardName && !!protocol && board.firmware !== boardName);
     button.onclick = () => {
-      controls.input_pin.value = input; controls.output_pin.value = output; resetCalibration(); renderBoardGuide();
+      controls.input_pin.value = input; controls.output_pin.value = output; resetCalibration(); renderCalibrationRequirement(); renderBoardGuide();
       message('Suggested GPIOs filled into the selected draft mapping. Check all mapping conflicts, then Apply all.');
     }; suggestions.append(button);
   });
@@ -99,6 +119,9 @@ loadBoardProfiles().then(profiles => {
 $('board-layout').onchange = renderBoardGuide;
 for (const key of ['input_pin', 'output_pin']) controls[key].addEventListener('input', renderBoardGuide);
 controls.input_pin.addEventListener('input', resetCalibration);
+for (const key of ['input_pin', 'input_min', 'input_neutral', 'input_max', 'invert', 'bidirectional', 'deadband']) {
+  controls[key].addEventListener('input', () => { resetCalibration(); renderCalibrationRequirement(); });
+}
 let lastMessage = '';
 function message(text) { lastMessage = text || ''; $('message').textContent = t(lastMessage); }
 function deviceButtons(connected) {
@@ -133,6 +156,7 @@ function status(data) {
   $('apply').disabled = $('save').disabled = !configurable(data);
   $('add-mapping').disabled = draftMappings.length >= 4 || !configurable(data);
   $('remove-mapping').disabled = draftMappings.length <= 1 || !configurable(data);
+  $('prepare-calibration').disabled = captureBusy || !configurable(data);
   $('transports').textContent = data.transports ? t('USB serial: enabled · Bluetooth serial: {transport}', {transport: data.transports.bluetooth_serial ? t('{name} (enabled{type})', {name: data.transports.bluetooth_name, type: data.transports.bluetooth_type === 'ble' ? ', BLE' : ''}) : t('unavailable')})
     : t(data.board === 'esp32' ? 'USB serial + Bluetooth SPP: RC-Limiter' : 'USB serial enabled · no onboard Bluetooth');
   const summary = $('mapping-summary'); summary.replaceChildren();
@@ -151,6 +175,10 @@ async function activateConnection(current) {
   $('connection').textContent = t('CONNECTED'); $('dot').classList.add('online');
   connecting = false; deviceButtons(true); status(data);
   message('Board mappings loaded. Hold every input at neutral for one second to enable control or change settings.');
+  renderCalibrationRequirement();
+  if (draftMappings.some(c => !radioCalibrations.has(calibrationDevice(), c))) {
+    try { requireCalibrated(draftMappings); } catch (error) { message(error.message); }
+  }
   polling = setInterval(() => {
     if (protocol && protocol.pending.size === 0) protocol.request('get').catch(error => message(error.message));
   }, bleLink ? 500 : 250);
@@ -237,11 +265,23 @@ async function action(cmd, extra = {}, load = false) {
   } catch (error) { message(error.message); }
 }
 $('start-calibration').onclick = () => {
+  radioCalibrations.set(calibrationDevice(), rawConfig(), false);
   resetCalibration();
+  renderCalibrationRequirement();
   $('calibration-controls').hidden = false;
   message('RC transmitter calibration started. Hold each requested position steady before capturing.');
 };
 $('load-calibration').onclick = () => action('get', {}, true);
+$('prepare-calibration').onclick = () => {
+  try {
+    const value = currentProfile();
+    const mappings = value.mappings.map(c => radioCalibrations.has(calibrationDevice(), c) ? c : { ...c, forward_percent: 0, reverse_percent: 0 });
+    if (protocolVersion < 2) {
+      if (mappings.length !== 1) throw new Error('Upgrade board firmware to use multiple mappings.');
+      void action('set', { config: mappings[0] });
+    } else void action('set_mappings', { mappings });
+  } catch (error) { message(error.message); }
+};
 for (const position of capturePositions) $('capture-' + position).onclick = async () => {
   if (!protocol || captureBusy) return;
   const current = protocol, mapping = selectedMapping, pin = Number(controls.input_pin.value), epoch = calibrationEpoch;
@@ -258,8 +298,10 @@ for (const position of capturePositions) $('capture-' + position).onclick = asyn
     captures[position] = pulse;
     renderCalibration();
     if (capturePositions.every(key => captures[key] !== undefined)) {
-      const config = calibrateRadio(form(), captures);
+      const config = calibrateRadio(rawConfig(), captures);
       fill(config); draftMappings[selectedMapping] = config;
+      radioCalibrations.set(calibrationDevice(), config);
+      renderCalibrationRequirement();
       message('Radio calibration added to draft. Return all inputs to neutral, then Apply all mappings and Save to flash.');
     }
   } catch (error) { message(error.message); }
@@ -276,6 +318,7 @@ $('read').onclick = () => action('get', {}, true);
 $('apply').onclick = () => {
   try {
     const value = currentProfile();
+    requireCalibrated(value.mappings);
     if (protocolVersion < 2) {
       if (value.mappings.length !== 1) throw new Error('Upgrade board firmware to use multiple mappings.');
       void action('set', { config: value.mappings[0] }, true);
@@ -297,7 +340,16 @@ $('remove-mapping').onclick = () => {
   draftMappings.splice(selectedMapping, 1); selectedMapping = Math.min(selectedMapping, draftMappings.length - 1);
   renderMappings(); if (latestData) status(latestData); message('Mapping removed from draft. Apply all mappings to change the board.');
 };
-$('save').onclick = () => action('save');
+$('save').onclick = () => {
+  try {
+    requireCalibrated(currentProfile().mappings);
+    // Save writes the board's RAM values, which may differ from the draft.
+    const applied = latestData?.mappings || (latestData?.config ? [latestData.config] : []);
+    if (applied.some(c => !radioCalibrations.has(calibrationDevice(), c)))
+      throw new Error('Apply the completed transmitter calibration before saving to flash.');
+    void action('save');
+  } catch (error) { message(error.message); }
+};
 $('export').onclick = () => {
   try {
     const blob = new Blob([JSON.stringify(currentProfile(), null, 2) + '\n'], { type: 'application/json' });
@@ -357,6 +409,8 @@ $('firmware-update').addEventListener('toggle', async () => {
 window.addEventListener('rc-language-change', () => {
   for (const [key, labels] of Object.entries(selects)) [...controls[key].options].forEach((option, i) => { option.textContent = t(labels[i]); });
   renderCalibration();
+  renderCalibrationRequirement();
+  renderLoadedCalibration();
   if (latestData) status(latestData);
   else { renderBoardGuide(); $('connection').textContent = t('OFFLINE'); }
   message(lastMessage);

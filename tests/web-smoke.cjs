@@ -23,6 +23,28 @@ async function main() {
       headless: true, args: ['--no-sandbox'] });
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const errors = []; page.on('pageerror', error => errors.push(error.message));
+    async function calibrateSelected() {
+      await page.locator('#start-calibration').click();
+      for (const [position, pulse] of [['forward', 2000], ['backward', 1000], ['neutral', 1500]]) {
+        await page.evaluate(value => { window.simulatedPulse = value; }, pulse);
+        await page.locator('#capture-' + position).click();
+        if (position !== 'neutral') await page.waitForFunction(value => document.getElementById('calibration-status').textContent.includes(String(value)), pulse);
+      }
+      await page.waitForFunction(() => document.getElementById('calibration-required').textContent.startsWith('Transmitter calibration complete'));
+    }
+    async function applyCalibratedMappings() {
+      const expectedUncalibrated = await page.locator('#mapping-select option').count() > await page.locator('#mapping-summary p').count();
+      await page.locator('#prepare-calibration').click();
+      await page.waitForFunction(() => document.getElementById('message').textContent.startsWith('Settings applied'));
+      if (expectedUncalibrated) assert.equal(await page.evaluate(() => window.simulatedMappings.some(c => c.forward_percent === 0 && c.reverse_percent === 0)), true);
+      const count = await page.locator('#mapping-select option').count();
+      for (let i = 0; i < count; i++) {
+        await page.locator('#mapping-select').selectOption(String(i));
+        await calibrateSelected();
+      }
+      await page.locator('#apply').click();
+      await page.waitForFunction(() => document.getElementById('message').textContent.startsWith('Settings applied'));
+    }
     await page.addInitScript(config => {
       let controller; let active = false, configurable = true, saved = false, revision = 0, deviceName = 'Pico-ABC123';
       const board = new URL(location.href).searchParams.get('board') || 'pico';
@@ -88,7 +110,20 @@ async function main() {
     await page.locator('#connect').click();
     await page.waitForFunction(() => document.getElementById('connection').textContent === 'CONNECTED');
     assert.match(await page.locator('#loaded-calibration').textContent(), /backward 1000.*neutral 1500.*throttle 2000/);
-    assert.equal(await page.locator('#calibration-controls').isVisible(), false);
+    assert.equal(await page.locator('#calibration-controls').isVisible(), true);
+    assert.equal(await page.locator('#output_neutral').isVisible(), false);
+    await page.locator('#esc-advanced summary').click();
+    assert.equal(await page.locator('#output_neutral').isVisible(), true);
+    await page.locator('#esc-advanced summary').click();
+    await page.locator('#apply').click();
+    assert.match(await page.locator('#message').textContent(), /Transmitter calibration required/);
+    await page.locator('#save').click();
+    assert.equal(await page.evaluate(() => window.simulatedMappings[0].forward_percent), 30);
+    assert.equal(await page.locator('#saved').textContent(), 'RAM ONLY');
+    await page.locator('#prepare-calibration').click();
+    await page.waitForFunction(() => document.getElementById('message').textContent.startsWith('Settings applied'));
+    assert.equal(await page.evaluate(() => window.simulatedMappings[0].forward_percent), 0);
+    assert.equal(await page.evaluate(() => window.simulatedMappings[0].reverse_percent), 0);
     await page.locator('#start-calibration').click();
     assert.equal(await page.locator('#calibration-controls').isVisible(), true);
     assert.equal(await page.locator('#input_neutral').isVisible(), false);
@@ -111,6 +146,8 @@ async function main() {
     assert.equal(await page.locator('#input_neutral').inputValue(), '1490');
     assert.equal(await page.locator('#invert').inputValue(), '1');
     assert.equal(await page.evaluate(() => window.simulatedMappings[0].input_min), 1000); // No implicit write.
+    await page.locator('#save').click();
+    assert.match(await page.locator('#message').textContent(), /Apply the completed transmitter calibration/);
     await page.locator('#receiver-advanced summary').click();
     assert.equal(await page.locator('#input_neutral').isVisible(), true);
     await page.locator('#load-calibration').click();
@@ -118,6 +155,7 @@ async function main() {
     assert.match(await page.locator('#loaded-calibration').textContent(), /backward 1000.*neutral 1500.*throttle 2000/);
     await page.locator('#receiver-advanced summary').click();
     await page.evaluate(() => { window.simulatedPulse = 1500; });
+    await calibrateSelected();
     await page.locator('#device-name').fill('Boat port ESC');
     await page.waitForTimeout(600); // Telemetry must preserve the unsaved name draft.
     assert.equal(await page.locator('#device-name').inputValue(), 'Boat port ESC');
@@ -142,7 +180,7 @@ async function main() {
     await page.locator('#output_pin').fill('7');
     await page.locator('#mapping-select').selectOption('0');
     assert.equal(await page.locator('#forward_percent').inputValue(), '20');
-    await page.locator('#apply').click();
+    await applyCalibratedMappings();
     await page.waitForFunction(() => window.simulatedMappings.length === 2);
     assert.equal(await page.evaluate(() => window.simulatedMappings[1].reverse_percent), 12);
     await page.locator('#mapping-select').selectOption('1');
@@ -174,7 +212,7 @@ async function main() {
     await page.locator('#add-mapping').click(); await page.locator('#add-mapping').click(); await page.locator('#add-mapping').click();
     assert.equal(await page.locator('#mapping-select option').count(), 4);
     assert.equal(await page.locator('#add-mapping').isDisabled(), true);
-    await page.locator('#apply').click();
+    await applyCalibratedMappings();
     await page.waitForFunction(() => window.simulatedMappings.length === 4);
     await page.locator('#save').click();
     await page.waitForFunction(() => document.getElementById('saved').textContent === 'SAVED');
@@ -195,6 +233,16 @@ async function main() {
     assert.match(await page.locator('#message').textContent(), /receiver|transmitter/i);
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    // The same browser remembers completed calibration across a full page reload.
+    await page.goto(`http://127.0.0.1:${server.address().port}/rc-limit/`);
+    await page.locator('#connect').click();
+    await page.waitForFunction(() => document.getElementById('connection').textContent === 'CONNECTED');
+    assert.match(await page.locator('#calibration-required').textContent(), /calibration complete/);
+    await page.locator('#invert').selectOption('1');
+    assert.match(await page.locator('#calibration-required').textContent(), /calibration required/);
+    await page.locator('#save').click();
+    assert.match(await page.locator('#message').textContent(), /calibration required/);
+    await page.locator('#disconnect').click();
     await page.goto(`http://127.0.0.1:${server.address().port}/rc-limit/?board=esp32`);
     await page.locator('#connect').click();
     await page.waitForFunction(() => document.getElementById('connection').textContent === 'CONNECTED');
@@ -204,7 +252,7 @@ async function main() {
     await page.locator('#add-mapping').click();
     assert.equal(await page.locator('#input_pin').inputValue(), '26');
     assert.equal(await page.locator('#output_pin').inputValue(), '33');
-    await page.locator('#apply').click();
+    await applyCalibratedMappings();
     await page.waitForFunction(() => window.simulatedMappings.length === 2);
     await page.locator('#disconnect').click();
     await page.waitForFunction(() => document.getElementById('connection').textContent === 'OFFLINE');
@@ -221,7 +269,7 @@ async function main() {
     assert.equal(await page.locator('#output_pin').inputValue(), '4');
     assert.equal(await page.locator('#board-layout').inputValue(), 'esp32c3-supermini');
     assert.match(await page.locator('#transports').textContent(), /RC-Limiter-C3.*BLE/);
-    await page.locator('#add-mapping').click(); await page.locator('#apply').click();
+    await page.locator('#add-mapping').click(); await applyCalibratedMappings();
     await page.waitForFunction(() => window.simulatedMappings.length === 2);
     assert.equal(await page.evaluate(() => window.simulatedMappings[1].input_pin), 5);
     assert.equal(await page.evaluate(() => window.bleChunks.every(n => n <= 20)), true);

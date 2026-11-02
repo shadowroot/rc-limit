@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Protocol, calibrateRadio, validateDeviceName, defaults, validate, validateMappings, profile, nextMapping } from '../web/protocol.mjs';
+import { Protocol, calibrateRadio, RadioCalibrations, validateDeviceName, defaults, validate, validateMappings, profile, nextMapping } from '../web/protocol.mjs';
 
 test('multiple mappings validate pins, fan-out, unique outputs and Pico PWM aliases', () => {
   const first = { ...defaults };
@@ -97,4 +97,31 @@ test('radio captures validate all three positions and detect reversed throttle',
   for (const samples of [{ forward: 2000, backward: 1000 }, { forward: 2000, backward: 2000, neutral: 1500 },
     { forward: 2000, backward: 1000, neutral: 2100 }, { forward: 2300, backward: 1000, neutral: 1500 },
     { forward: 2000, backward: 1490, neutral: 1500 }]) assert.throws(() => calibrateRadio(defaults, samples));
+});
+
+test('calibration completion is persisted per board and receiver settings', () => {
+  const values = new Map();
+  const storage = { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) };
+  const records = new RadioCalibrations(storage);
+  assert.equal(records.has('pico:one', defaults), false);
+  records.set('pico:one', defaults);
+  const restored = new RadioCalibrations(storage);
+  assert.equal(restored.has('pico:one', defaults), true);
+  assert.equal(restored.has('pico:two', defaults), false);
+  for (const key of ['input_pin', 'input_min', 'input_neutral', 'input_max', 'invert', 'bidirectional', 'deadband'])
+    assert.equal(restored.has('pico:one', { ...defaults, [key]: defaults[key] + 1 }), false);
+  assert.equal(restored.has('pico:one', { ...defaults, output_pin: 7, forward_percent: 10 }), true);
+  restored.set('pico:one', defaults, false);
+  assert.equal(new RadioCalibrations(storage).has('pico:one', defaults), false);
+  const unavailable = new RadioCalibrations({ getItem() { throw Error(); }, setItem() { throw Error(); } });
+  unavailable.set('pico:one', defaults);
+  assert.equal(unavailable.has('pico:one', defaults), true);
+  assert.equal(new RadioCalibrations({ getItem: () => '{}' }).has('pico:one', defaults), false);
+});
+
+test('required capture supports a forward-only radio with endpoint stop', () => {
+  const c = calibrateRadio({ ...defaults, bidirectional: 0 }, { forward: 2000, backward: 1000, neutral: 1010 });
+  assert.equal(c.input_neutral, 1500);
+  assert.equal(c.input_min, 1000);
+  assert.throws(() => calibrateRadio({ ...defaults, bidirectional: 0 }, { forward: 2000, backward: 1000, neutral: 1500 }));
 });
