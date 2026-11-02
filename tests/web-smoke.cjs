@@ -87,6 +87,10 @@ async function main() {
     assert.equal(await page.locator('#arm, #disarm').count(), 0);
     await page.locator('#connect').click();
     await page.waitForFunction(() => document.getElementById('connection').textContent === 'CONNECTED');
+    assert.match(await page.locator('#loaded-calibration').textContent(), /backward 1000.*neutral 1500.*throttle 2000/);
+    assert.equal(await page.locator('#calibration-controls').isVisible(), false);
+    await page.locator('#start-calibration').click();
+    assert.equal(await page.locator('#calibration-controls').isVisible(), true);
     assert.equal(await page.locator('#input_neutral').isVisible(), false);
     await page.evaluate(() => { window.simulatedPulse = 1060; });
     await page.locator('#capture-forward').click();
@@ -109,8 +113,9 @@ async function main() {
     assert.equal(await page.evaluate(() => window.simulatedMappings[0].input_min), 1000); // No implicit write.
     await page.locator('#receiver-advanced summary').click();
     assert.equal(await page.locator('#input_neutral').isVisible(), true);
-    await page.locator('#read').click();
+    await page.locator('#load-calibration').click();
     await page.waitForFunction(() => document.getElementById('input_min').value === '1000');
+    assert.match(await page.locator('#loaded-calibration').textContent(), /backward 1000.*neutral 1500.*throttle 2000/);
     await page.locator('#receiver-advanced summary').click();
     await page.evaluate(() => { window.simulatedPulse = 1500; });
     await page.locator('#device-name').fill('Boat port ESC');

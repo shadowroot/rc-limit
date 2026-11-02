@@ -1,5 +1,9 @@
 # Verification record
 
+## RC transmitter calibration entry and reload (2026-11-02)
+
+The receiver section now has a **Calibrate RC transmitter** button that reveals the three capture actions, plus **Load values from board**. Connecting automatically loads and displays the selected mapping's backward, neutral and throttle values; reloading discards unsaved draft edits. Repository checks and simulated Chromium USB/BLE integration passed. The tracked web ZIP was rebuilt. No physical radio or board was used.
+
 ## Radio capture calibration (2026-11-02)
 
 Receiver calibration now captures full throttle, full backward and neutral into the selected draft mapping, including automatic receiver-direction detection. Manual receiver pulse values and deadband are under a collapsed Advanced section. Apply and Save remain separate.

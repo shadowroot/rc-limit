@@ -39,12 +39,20 @@ function resetCalibration() {
   renderCalibration();
 }
 function calibrationButtons(connected) {
+  $('start-calibration').disabled = !connected || captureBusy;
+  $('load-calibration').disabled = !connected || captureBusy;
   for (const position of capturePositions) $('capture-' + position).disabled = !connected || captureBusy;
 }
 let lastDeviceName, lastDeviceId;
 const configurable = data => data?.configurable ?? !data?.armed;
-let draftMappings = [{ ...defaults }], selectedMapping = 0, boardName, latestData, protocolVersion = 1;
+let draftMappings = [{ ...defaults }], loadedMappings = [], selectedMapping = 0, boardName, latestData, protocolVersion = 1;
 function stashMapping() { draftMappings[selectedMapping] = form(); }
+function renderLoadedCalibration() {
+  const c = loadedMappings[selectedMapping];
+  $('loaded-calibration').textContent = c ? t('Loaded from board: backward {backward} µs · neutral {neutral} µs · throttle {forward} µs', {
+    backward: c.invert ? c.input_max : c.input_min, neutral: c.input_neutral, forward: c.invert ? c.input_min : c.input_max,
+  }) : t('This draft mapping has not been loaded from the board.');
+}
 function renderMappings() {
   resetCalibration();
   $('mapping-select').replaceChildren(...draftMappings.map((c, i) => new Option(`${i + 1}: GPIO${c.input_pin} → GPIO${c.output_pin}`, i)));
@@ -52,9 +60,11 @@ function renderMappings() {
   $('add-mapping').disabled = draftMappings.length >= 4 || !configurable(latestData);
   $('remove-mapping').disabled = draftMappings.length <= 1 || !configurable(latestData);
   fill(draftMappings[selectedMapping]);
+  renderLoadedCalibration();
 }
 function loadMappings(data) {
-  draftMappings = profile(data.mappings ? { version: 2, mappings: data.mappings } : data.config, data.board).mappings.map(c => ({ ...c }));
+  loadedMappings = profile(data.mappings ? { version: 2, mappings: data.mappings } : data.config, data.board).mappings.map(c => ({ ...c }));
+  draftMappings = loadedMappings.map(c => ({ ...c }));
   selectedMapping = Math.min(selectedMapping, draftMappings.length - 1); renderMappings();
 }
 function currentProfile() {
@@ -207,6 +217,9 @@ async function disconnect(notify = true) {
   $('input').textContent = $('output').textContent = t('—');
   $('mapping-summary').textContent = t('Disconnected; read the board to view live mappings.');
   resetCalibration();
+  loadedMappings = [];
+  $('calibration-controls').hidden = true;
+  $('loaded-calibration').textContent = t('Connect a board to load its receiver calibration.');
   latestData = undefined; lastDeviceName = lastDeviceId = undefined;
   $('device-identity').textContent = t('Disconnected; reconnect to identify the board.');
   $('add-mapping').disabled = draftMappings.length >= 4;
@@ -223,6 +236,12 @@ async function action(cmd, extra = {}, load = false) {
       get: 'Board settings loaded into the form.' })[cmd]);
   } catch (error) { message(error.message); }
 }
+$('start-calibration').onclick = () => {
+  resetCalibration();
+  $('calibration-controls').hidden = false;
+  message('RC transmitter calibration started. Hold each requested position steady before capturing.');
+};
+$('load-calibration').onclick = () => action('get', {}, true);
 for (const position of capturePositions) $('capture-' + position).onclick = async () => {
   if (!protocol || captureBusy) return;
   const current = protocol, mapping = selectedMapping, pin = Number(controls.input_pin.value), epoch = calibrationEpoch;
